@@ -31,8 +31,8 @@
                     0.05771440640091896,
                     0.03288467600941658
                 ],
-                "video_path": "/home/ubuntu/av_experiment_results/sample_0/window_0.mp4",
-                "melspectrogram_path": "/home/ubuntu/av_experiment_results/sample_0/melspectrogram_window_0.png",
+                "video_path": "/data/sample_0/window_0.mp4",
+                "melspectrogram_path": "/data/sample_0/melspectrogram_window_0.png",
                 "cross_entropy": 2.9296875,
                 "rank_of_correct_class": 6,
                 "offset_from_correct": 4
@@ -66,8 +66,8 @@
                     0.08003871887922287,
                     0.04524978622794151
                 ],
-                "video_path": "/home/ubuntu/av_experiment_results/sample_0/window_1.mp4",
-                "melspectrogram_path": "/home/ubuntu/av_experiment_results/sample_0/melspectrogram_window_1.png",
+                "video_path": "/data/sample_0/window_1.mp4",
+                "melspectrogram_path": "/data/sample_0/melspectrogram_window_1.png",
                 "cross_entropy": 3.103515625,
                 "rank_of_correct_class": 11,
                 "offset_from_correct": 8
@@ -101,8 +101,8 @@
                     0.040655236691236496,
                     0.04679388925433159
                 ],
-                "video_path": "/home/ubuntu/av_experiment_results/sample_0/window_2.mp4",
-                "melspectrogram_path": "/home/ubuntu/av_experiment_results/sample_0/melspectrogram_window_2.png",
+                "video_path": "/data/sample_0/window_2.mp4",
+                "melspectrogram_path": "/data/sample_0/melspectrogram_window_2.png",
                 "cross_entropy": 3.30859375,
                 "rank_of_correct_class": 13,
                 "offset_from_correct": 7
@@ -136,8 +136,8 @@
                     0.06172427162528038,
                     0.030199747532606125
                 ],
-                "video_path": "/home/ubuntu/av_experiment_results/sample_0/window_3.mp4",
-                "melspectrogram_path": "/home/ubuntu/av_experiment_results/sample_0/melspectrogram_window_3.png",
+                "video_path": "/data/sample_0/window_3.mp4",
+                "melspectrogram_path": "/data/sample_0/melspectrogram_window_3.png",
                 "cross_entropy": 4.3046875,
                 "rank_of_correct_class": 20,
                 "offset_from_correct": 9
@@ -171,8 +171,8 @@
                     0.0956384614109993,
                     0.06598855555057526
                 ],
-                "video_path": "/home/ubuntu/av_experiment_results/sample_0/window_4.mp4",
-                "melspectrogram_path": "/home/ubuntu/av_experiment_results/sample_0/melspectrogram_window_4.png",
+                "video_path": "/data/sample_0/window_4.mp4",
+                "melspectrogram_path": "/data/sample_0/melspectrogram_window_4.png",
                 "cross_entropy": 4.15625,
                 "rank_of_correct_class": 19,
                 "offset_from_correct": 9
@@ -206,8 +206,8 @@
                     0.21408818662166595,
                     0.0606226921081543
                 ],
-                "video_path": "/home/ubuntu/av_experiment_results/sample_0/window_5.mp4",
-                "melspectrogram_path": "/home/ubuntu/av_experiment_results/sample_0/melspectrogram_window_5.png",
+                "video_path": "/data/sample_0/window_5.mp4",
+                "melspectrogram_path": "/data/sample_0/melspectrogram_window_5.png",
                 "cross_entropy": 4.3984375,
                 "rank_of_correct_class": 18,
                 "offset_from_correct": 15
