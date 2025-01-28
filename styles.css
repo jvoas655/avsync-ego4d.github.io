@@ -1,19 +1,21 @@
 body {
-  background-color: #f8f9fa; /* light gray from Bootstrap's palette */
+  background-color: #f8f9fa; /* Bootstrap's light background */
 }
 
-.card {
-  border-radius: 6px;
+.sample-card {
+  /* Additional spacing if desired */
+  border: 1px solid #dee2e6 !important;
 }
 
 .collapse-icon {
   font-weight: bold;
-}
-
-.collapse-body {
-  /* We toggle display in JS, no default needed here. */
+  user-select: none; /* Prevent text selection on click */
 }
 
 .table th, .table td {
-  vertical-align: middle !important;
+  vertical-align: middle;
+}
+
+.badge {
+  font-size: 0.9em;
 }
