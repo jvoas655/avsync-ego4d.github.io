@@ -32,6 +32,20 @@ table td[data-bar] {
   border-radius: 6px;
   margin-bottom: 15px; /* Add spacing between cards */
   padding: 10px; /* Optional padding inside the card */
-  background-color: #D3D3D3; /* Ensure white background for contrast */
+  background-color: #DFDFDF; /* Ensure white background for contrast */
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+}
+
+.sample-card .card-header {
+  border-bottom: 1px solid #dee2e6; /* Light gray border below the header */
+}
+
+.sample-card .card-body > div {
+  border-bottom: 1px solid #dee2e6; /* Border between sections inside the card */
+  padding-bottom: 10px; /* Spacing for readability */
+  margin-bottom: 10px; /* Spacing for readability */
+}
+
+.sample-card .card-body > div:last-child {
+  border-bottom: none; /* Remove the border for the last section */
 }
