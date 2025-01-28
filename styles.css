@@ -1,15 +1,14 @@
-body {
-  background-color: #f8f9fa; /* Bootstrap's light background */
-}
+/* Example CSS */
 
 .sample-card {
-  /* Additional spacing if desired */
-  border: 1px solid #dee2e6 !important;
+  border-radius: 6px;
 }
 
 .collapse-icon {
   font-weight: bold;
-  user-select: none; /* Prevent text selection on click */
+  user-select: none;
+  font-size: 1.2em;
+  margin-left: 8px;
 }
 
 .table th, .table td {
@@ -18,4 +17,11 @@ body {
 
 .badge {
   font-size: 0.9em;
+  margin-left: 4px;
+}
+
+/* This ensures the body background is light, 
+   but you can style further if you want. */
+body {
+  background-color: #f8f9fa !important;
 }
