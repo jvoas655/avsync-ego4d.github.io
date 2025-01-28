@@ -31,8 +31,8 @@
                     0.05771440640091896,
                     0.03288467600941658
                 ],
-                "video_path": "/home/ubuntu/av_experiment_results/sample_0/window_0.mp4",
-                "melspectrogram_path": "/home/ubuntu/av_experiment_results/sample_0/melspectrogram_window_0.png",
+                "video_path": "/data/sample_0/window_0.mp4",
+                "melspectrogram_path": "/data/sample_0/melspectrogram_window_0.png",
                 "cross_entropy": 2.9296875,
                 "rank_of_correct_class": 6,
                 "offset_from_correct": 4
