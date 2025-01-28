@@ -1,60 +1,55 @@
-// scripts.js
-
-// Default threshold values (will be updated from the HTML inputs)
+// ------------------------------------------------------------------------------------------
+// Global thresholds (will get updated by UI inputs)
 let offsetThresholdAlmost = 1;
 let offsetThresholdVeryWrong = 3;
 let highConfidenceThreshold = 0.75;
 let lowConfidenceThreshold = 0.25;
 
+// Loaded data
+let allSamples = [];
+
 document.addEventListener("DOMContentLoaded", () => {
-  // Load the JSON data
+  // Fetch the massive JSON
   fetch("data/samples.json")
     .then(resp => resp.json())
     .then(data => {
-      // Precompute stats for each sample
-      data.forEach(computeSampleStats);
+      allSamples = data;
 
-      // Store globally
-      window.allSamples = data;
+      // Precompute per-sample stats
+      allSamples.forEach(computeSampleStats);
 
-      // Attach event handlers
+      // Setup UI listeners
       setupUI();
 
       // Initial render
       applyFiltersAndRender();
     })
-    .catch(err => console.error("Failed to load data:", err));
+    .catch(err => {
+      console.error("Failed to load data:", err);
+      document.getElementById("global-stats").textContent = 
+        "Error: Could not load samples.json.";
+    });
 });
 
-// ---------------------------------------------------------
-// Precompute stats (min/mean/max/std) for windows
-// ---------------------------------------------------------
+// ------------------------------------------------------------------------------------------
+// Compute min/mean/max/std for offset & confidence across windows
+// ------------------------------------------------------------------------------------------
 function computeSampleStats(sample) {
-  const windows = sample.window_metrics || [];
-
-  // Arrays to hold relevant numeric data
+  const w = sample.window_metrics || [];
   const offsets = [];
-  const confidences = [];
+  const confs = [];
 
-  windows.forEach(w => {
-    if (typeof w.offset_from_correct === "number") {
-      offsets.push(w.offset_from_correct);
-    }
-    if (typeof w.confidence === "number") {
-      confidences.push(w.confidence);
-    }
+  w.forEach(win => {
+    if (typeof win.offset_from_correct === "number") offsets.push(win.offset_from_correct);
+    if (typeof win.confidence === "number") confs.push(win.confidence);
   });
 
   sample.stats = {
     offset: getStats(offsets),
-    confidence: getStats(confidences),
-    // You could compute other stats if you want (cross_entropy, etc.)
+    confidence: getStats(confs),
   };
 }
 
-/**
- * Returns { min, max, mean, std } for an array of numbers.
- */
 function getStats(values) {
   if (!values.length) {
     return { min: null, max: null, mean: null, std: null };
@@ -63,13 +58,17 @@ function getStats(values) {
   const max = Math.max(...values);
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
   const variance = values.reduce((acc, val) => acc + (val - mean) ** 2, 0) / values.length;
-  const std = Math.sqrt(variance);
-  return { min, max, mean, std };
+  return {
+    min,
+    max,
+    mean,
+    std: Math.sqrt(variance),
+  };
 }
 
-// ---------------------------------------------------------
-// Setup UI listeners for filters, expansions, etc.
-// ---------------------------------------------------------
+// ------------------------------------------------------------------------------------------
+// UI Setup
+// ------------------------------------------------------------------------------------------
 function setupUI() {
   // Threshold inputs
   document.getElementById("offset-threshold-almost").addEventListener("change", (e) => {
@@ -90,17 +89,22 @@ function setupUI() {
   });
 
   // Checkboxes
-  ["filter-correct", "filter-almost", "filter-incorrect", 
-   "filter-confident", "filter-unconfident", "filter-majority-wrong-final-correct"
-  ].forEach(id => {
+  [
+    "filter-correct",
+    "filter-almost",
+    "filter-incorrect",
+    "filter-confident",
+    "filter-unconfident",
+    "filter-majority-wrong-final-correct",
+  ].forEach((id) => {
     document.getElementById(id).addEventListener("change", applyFiltersAndRender);
   });
 
-  // Sample index
+  // Sample index filter
   document.getElementById("btn-apply-filters").addEventListener("click", applyFiltersAndRender);
   document.getElementById("btn-reset-filters").addEventListener("click", resetFilters);
 
-  // Collapse / Expand All
+  // Collapse/Expand all
   document.getElementById("btn-collapse-all").addEventListener("click", () => toggleAllCards(false));
   document.getElementById("btn-expand-all").addEventListener("click", () => toggleAllCards(true));
 }
@@ -125,15 +129,15 @@ function resetFilters() {
   highConfidenceThreshold = 0.75;
   lowConfidenceThreshold = 0.25;
 
-  // Clear sample index filter
+  // Clear sample index
   document.getElementById("filter-sample-index").value = "";
 
   applyFiltersAndRender();
 }
 
-// ---------------------------------------------------------
-// Filter logic + Rendering
-// ---------------------------------------------------------
+// ------------------------------------------------------------------------------------------
+// Filtering Logic
+// ------------------------------------------------------------------------------------------
 function applyFiltersAndRender() {
   const correctCb = document.getElementById("filter-correct");
   const almostCb = document.getElementById("filter-almost");
@@ -143,14 +147,14 @@ function applyFiltersAndRender() {
   const turnaroundCb = document.getElementById("filter-majority-wrong-final-correct");
   const sampleIndexInput = document.getElementById("filter-sample-index").value.trim();
 
-  // Parse sample index input (comma-separated)
+  // Parse sample index filter
   let sampleIndexFilter = null;
   if (sampleIndexInput) {
     sampleIndexFilter = sampleIndexInput.split(",").map(s => parseInt(s.trim(), 10));
     sampleIndexFilter = sampleIndexFilter.filter(n => !isNaN(n));
   }
 
-  const filtered = window.allSamples.filter(sample => {
+  const filtered = allSamples.filter(sample => {
     const final = sample.final_metrics || {};
     const offset = final.offset_from_correct;
     const conf = final.confidence || 0;
@@ -160,21 +164,21 @@ function applyFiltersAndRender() {
     const highConf = conf >= highConfidenceThreshold;
     const lowConf = conf <= lowConfidenceThreshold;
 
-    // Check "turnaround" condition
+    // Turnaround logic
     const windows = sample.window_metrics || [];
-    const numWindows = windows.length;
-    const numCorrect = windows.filter(x => x.correct === true).length;
-    const majorityWrong = (numCorrect < numWindows / 2);
+    const nW = windows.length;
+    const nCorrect = windows.filter(w => w.correct === true).length;
+    const majorityWrong = (nCorrect < nW / 2);
     const isTurnaround = (majorityWrong && correct);
 
-    // If there's a sampleIndexFilter, check membership
+    // If sampleIndexFilter is used, check membership
     if (sampleIndexFilter && sampleIndexFilter.length > 0) {
       if (!sampleIndexFilter.includes(sample.sample_idx)) {
         return false;
       }
     }
 
-    // Check each filter
+    // Check checkboxes
     if (!correctCb.checked && correct) return false;
     if (!almostCb.checked && almost) return false;
     if (!wrongCb.checked && veryWrong) return false;
@@ -189,42 +193,39 @@ function applyFiltersAndRender() {
   renderGlobalStats(filtered);
 }
 
-/**
- * Renders the sample cards into #sample-container
- */
+// ------------------------------------------------------------------------------------------
+// Rendering
+// ------------------------------------------------------------------------------------------
 function renderSamples(samples) {
   const container = document.getElementById("sample-container");
   container.innerHTML = "";
 
   if (!samples.length) {
-    container.innerHTML = `<div class="alert alert-warning">
-      No samples match the current filters.
-    </div>`;
+    container.innerHTML = `<div class="alert alert-warning">No samples match the filters.</div>`;
     return;
   }
 
   samples.forEach(sample => {
-    const card = createSampleCard(sample);
-    container.appendChild(card);
+    container.appendChild(createSampleCard(sample));
   });
 }
 
 /**
- * Creates a Bootstrap card for a single sample
+ * Creates one "card" for a sample. 
  */
 function createSampleCard(sample) {
   const card = document.createElement("div");
-  card.className = "card mb-4";
+  card.className = "card mb-4 shadow-sm border rounded sample-card";
 
-  // Card header with clickable toggle
+  // Card header
   const header = document.createElement("div");
   header.className = "card-header d-flex justify-content-between align-items-center";
   header.style.cursor = "pointer";
+
   const title = document.createElement("h5");
   title.textContent = `Sample #${sample.sample_idx}`;
   header.appendChild(title);
 
-  // Expand/Collapse icon
   const icon = document.createElement("span");
   icon.textContent = "▼";
   icon.className = "collapse-icon";
@@ -233,104 +234,216 @@ function createSampleCard(sample) {
   // Collapsible body
   const body = document.createElement("div");
   body.className = "card-body collapse-body";
+  body.style.display = "block"; // start expanded
 
-  // Final Metrics + Stats
+  // Content
+  body.appendChild(createFinalMetricsSection(sample));
+  body.appendChild(createFullMediaSection(sample));
+  body.appendChild(createWindowTableSection(sample));
+
+  // Toggle logic
+  header.addEventListener("click", () => {
+    if (body.style.display === "none") {
+      body.style.display = "block";
+      icon.textContent = "▼";
+    } else {
+      body.style.display = "none";
+      icon.textContent = "▲";
+    }
+  });
+
+  card.appendChild(header);
+  card.appendChild(body);
+  return card;
+}
+
+/**
+ * Final Metrics, including color-coding for correctness, offset, and confidence.
+ */
+function createFinalMetricsSection(sample) {
   const final = sample.final_metrics || {};
   const offset = final.offset_from_correct;
   const conf = final.confidence;
+  const isCorrect = (offset === 0);
 
-  const correctnessText = (offset === 0) ? "Correct" : "Incorrect";
+  const container = document.createElement("div");
+  container.className = "mb-3";
 
-  // Basic final info
-  const finalMetricsSection = document.createElement("div");
-  finalMetricsSection.className = "mb-3";
+  const title = document.createElement("h6");
+  title.textContent = "Final Metrics";
+  title.className = "mb-2";
+  container.appendChild(title);
 
-  const finalTitle = document.createElement("h6");
-  finalTitle.textContent = "Final Metrics";
-  finalMetricsSection.appendChild(finalTitle);
+  // We'll build a row with text & color-coded badges
+  const row = document.createElement("div");
+  row.className = "row g-2 align-items-center";
 
-  const finalInfo = document.createElement("p");
-  finalInfo.innerHTML = `
-    <strong>Ground Truth:</strong> ${final.ground_truth} <br/>
-    <strong>Predicted Class:</strong> ${final.predicted_class} <br/>
-    <strong>Correctness:</strong> ${correctnessText} <br/>
-    <strong>Offset from Correct:</strong> ${offset !== undefined ? offset : "N/A"} <br/>
-    <strong>Confidence:</strong> ${conf !== undefined ? conf.toFixed(3) : "N/A"} <br/>
+  // Ground truth & predicted class
+  const colLeft = document.createElement("div");
+  colLeft.className = "col-auto";
+  colLeft.innerHTML = `
+    <div><strong>Ground Truth:</strong> ${final.ground_truth ?? "N/A"}</div>
+    <div><strong>Predicted:</strong> ${final.predicted_class ?? "N/A"}</div>
   `;
-  finalMetricsSection.appendChild(finalInfo);
+  row.appendChild(colLeft);
 
-  // Window-level stats (min, max, mean, std) from sample.stats
+  // Correctness badge
+  const correctnessBadge = document.createElement("span");
+  correctnessBadge.className = isCorrect ? "badge bg-success me-2" : "badge bg-danger me-2";
+  correctnessBadge.textContent = isCorrect ? "Correct" : "Incorrect";
+
+  // Offset badge
+  const offsetBadge = document.createElement("span");
+  offsetBadge.className = "badge me-2 " + getOffsetColorClass(offset);
+  offsetBadge.textContent = 
+    offset === undefined || offset === null ? "Offset: N/A" : `Offset: ${offset}`;
+
+  // Confidence badge
+  const confBadge = document.createElement("span");
+  const confText = (conf !== undefined) ? conf.toFixed(3) : "N/A";
+  confBadge.className = "badge " + getConfidenceColorClass(conf);
+  confBadge.textContent = `Conf: ${confText}`;
+
+  const colRight = document.createElement("div");
+  colRight.className = "col-auto";
+  colRight.appendChild(correctnessBadge);
+  colRight.appendChild(offsetBadge);
+  colRight.appendChild(confBadge);
+
+  row.appendChild(colRight);
+  container.appendChild(row);
+
+  // Window-level stats
   const { offset: offStats, confidence: confStats } = sample.stats;
-  const statsSection = document.createElement("p");
-  statsSection.innerHTML = `
-    <strong>Window Stats (Offset):</strong><br/>
-    &nbsp; - min: ${offStats.min === null ? "N/A" : offStats.min.toFixed(2)} <br/>
-    &nbsp; - max: ${offStats.max === null ? "N/A" : offStats.max.toFixed(2)} <br/>
-    &nbsp; - mean: ${offStats.mean === null ? "N/A" : offStats.mean.toFixed(2)} <br/>
-    &nbsp; - std: ${offStats.std === null ? "N/A" : offStats.std.toFixed(2)} <br/><br/>
+  const statsDiv = document.createElement("div");
+  statsDiv.className = "mt-3";
 
-    <strong>Window Stats (Confidence):</strong><br/>
-    &nbsp; - min: ${confStats.min === null ? "N/A" : confStats.min.toFixed(3)} <br/>
-    &nbsp; - max: ${confStats.max === null ? "N/A" : confStats.max.toFixed(3)} <br/>
-    &nbsp; - mean: ${confStats.mean === null ? "N/A" : confStats.mean.toFixed(3)} <br/>
-    &nbsp; - std: ${confStats.std === null ? "N/A" : confStats.std.toFixed(3)} <br/>
+  statsDiv.innerHTML = `
+    <strong>Window Stats (Offset):</strong> 
+      min=${fmtStat(offStats.min)} / 
+      max=${fmtStat(offStats.max)} / 
+      mean=${fmtStat(offStats.mean)} / 
+      std=${fmtStat(offStats.std)} <br/>
+    <strong>Window Stats (Confidence):</strong> 
+      min=${fmtStat(confStats.min, 3)} / 
+      max=${fmtStat(confStats.max, 3)} / 
+      mean=${fmtStat(confStats.mean, 3)} / 
+      std=${fmtStat(confStats.std, 3)}
   `;
-  finalMetricsSection.appendChild(statsSection);
+  container.appendChild(statsDiv);
 
-  body.appendChild(finalMetricsSection);
+  return container;
+}
 
-  // Full A/V (if available)
-  const fullAVSection = document.createElement("div");
-  fullAVSection.className = "mb-3";
-  const fullAVTitle = document.createElement("h6");
-  fullAVTitle.textContent = "Full Audio/Video";
-  fullAVSection.appendChild(fullAVTitle);
+/** Returns a Bootstrap badge color class for offset. */
+function getOffsetColorClass(offset) {
+  if (offset === undefined || offset === null) return "bg-secondary";
+  if (offset === 0) return "bg-success";
+  if (offset <= offsetThresholdAlmost) return "bg-warning text-dark"; 
+  if (offset >= offsetThresholdVeryWrong) return "bg-danger";
+  return "bg-secondary";
+}
 
-  // You might have stored these file paths in sample.metrics.json, e.g. "full_window.mp4"
-  // We'll assume you can store them in the sample JSON under something like:
-  // sample.full_av_path (for video) and sample.full_melspec_path (for spectrogram).
-  // If they don’t exist, we skip.
-  // Adjust these property names as needed.
+/** Returns a Bootstrap badge color class for confidence. */
+function getConfidenceColorClass(conf) {
+  if (conf === undefined || conf === null) return "bg-secondary";
+  if (conf >= highConfidenceThreshold) return "bg-success";
+  if (conf <= lowConfidenceThreshold) return "bg-danger";
+  return "bg-warning text-dark";
+}
 
-  let hasAnyFullMedia = false;
+/** Format a stat with optional decimal places. */
+function fmtStat(value, decimals = 2) {
+  if (value === null) return "N/A";
+  return value.toFixed(decimals);
+}
 
-  if (sample.full_av_path) {
-    const video = document.createElement("video");
-    video.src = sample.full_av_path;
-    video.controls = true;
-    video.width = 400;
-    video.className = "mb-2 d-block";
-    fullAVSection.appendChild(video);
-    hasAnyFullMedia = true;
+/**
+ * Full Audio/Video Section 
+ * We derive the folder path from the first window's video_path if it exists,
+ * otherwise we default to: "data/sample_{sample_idx}"
+ * Then we build "full_window.mp4" and "melspectrogram_full.png" 
+ * and show them if they load. Otherwise, "No data".
+ */
+function createFullMediaSection(sample) {
+  const container = document.createElement("div");
+  container.className = "mb-3";
+
+  const title = document.createElement("h6");
+  title.textContent = "Full Audio/Video";
+  container.appendChild(title);
+
+  // Attempt to derive folder path from any window path
+  const w = sample.window_metrics || [];
+  let folderPath = null;
+  if (w.length > 0 && w[0].video_path) {
+    // e.g. "data/sample_10/window_0.mp4"
+    const p = w[0].video_path; 
+    const match = p.match(/^(.*\/sample_\d+)\/.*$/);
+    if (match) {
+      folderPath = match[1]; // e.g. "data/sample_10"
+    }
   }
 
-  if (sample.full_melspec_path) {
-    const img = document.createElement("img");
-    img.src = sample.full_melspec_path;
-    img.alt = "Full Melspectrogram";
-    img.width = 400;
-    fullAVSection.appendChild(img);
-    hasAnyFullMedia = true;
+  // If we still don't have folderPath, just use default: "data/sample_{idx}"
+  if (!folderPath) {
+    folderPath = `data/sample_${sample.sample_idx}`;
   }
 
-  if (!hasAnyFullMedia) {
-    const noData = document.createElement("p");
-    noData.textContent = "No full A/V data available.";
-    fullAVSection.appendChild(noData);
+  // Build the two file paths
+  const fullVidPath = `${folderPath}/full_window.mp4`;
+  const fullMelspecPath = `${folderPath}/melspectrogram_full.png`;
+
+  // We'll try to embed them. If they fail to load => onerror hides them.
+  let hasAtLeastOne = false;
+
+  const video = document.createElement("video");
+  video.src = fullVidPath;
+  video.controls = true;
+  video.width = 400;
+  video.className = "d-block mb-2";
+  video.onerror = () => { video.remove(); checkIfEmpty(); };
+  container.appendChild(video);
+  hasAtLeastOne = true;
+
+  const img = document.createElement("img");
+  img.src = fullMelspecPath;
+  img.alt = "Full Melspectrogram";
+  img.width = 600;  // Make it larger
+  img.onerror = () => { img.remove(); checkIfEmpty(); };
+  container.appendChild(img);
+  hasAtLeastOne = true;
+
+  // If both fail, show "No data".
+  function checkIfEmpty() {
+    if (!video.isConnected && !img.isConnected) {
+      container.innerHTML += `<div class="text-muted mt-2">No full audio/video data found.</div>`;
+    }
   }
 
-  body.appendChild(fullAVSection);
+  return container;
+}
 
-  // Window Table Section
+/**
+ * Window Breakdown (table)
+ */
+function createWindowTableSection(sample) {
+  const container = document.createElement("div");
+  container.className = "mb-3";
+
+  const title = document.createElement("h6");
+  title.textContent = "Window Breakdown";
+  container.appendChild(title);
+
   const windows = sample.window_metrics || [];
-  const windowSection = document.createElement("div");
-  windowSection.className = "mb-3";
-  const windowTitle = document.createElement("h6");
-  windowTitle.textContent = "Window Breakdown";
-  windowSection.appendChild(windowTitle);
+  if (!windows.length) {
+    container.innerHTML += `<div class="text-muted">No window metrics.</div>`;
+    return container;
+  }
 
   const table = document.createElement("table");
-  table.className = "table table-bordered table-sm align-middle";
+  table.className = "table table-striped table-bordered table-sm align-middle";
+
   const thead = document.createElement("thead");
   thead.innerHTML = `
     <tr class="table-secondary">
@@ -344,25 +457,42 @@ function createSampleCard(sample) {
       <th>Melspec</th>
     </tr>
   `;
+
   const tbody = document.createElement("tbody");
 
   windows.forEach(w => {
     const row = document.createElement("tr");
+    const isCorrect = w.correct ? "Yes" : "No";
+
+    // Confidence with color-coded badge
+    const confBadgeHtml = `
+      <span class="badge ${getConfidenceColorClass(w.confidence)}">
+        ${w.confidence !== undefined ? w.confidence.toFixed(3) : "N/A"}
+      </span>
+    `;
+
+    // Offset with color-coded badge
+    const offsetBadgeHtml = `
+      <span class="badge ${getOffsetColorClass(w.offset_from_correct)}">
+        ${w.offset_from_correct ?? "N/A"}
+      </span>
+    `;
+
     row.innerHTML = `
-      <td>${w.iteration}</td>
-      <td>${w.predicted_class}</td>
-      <td>${w.ground_truth === undefined ? "" : w.ground_truth}</td>
-      <td>${w.confidence !== undefined ? w.confidence.toFixed(3) : ""}</td>
-      <td>${w.offset_from_correct !== undefined ? w.offset_from_correct : ""}</td>
-      <td>${w.correct ? "Yes" : "No"}</td>
+      <td>${w.iteration ?? ""}</td>
+      <td>${w.predicted_class ?? ""}</td>
+      <td>${w.ground_truth ?? ""}</td>
+      <td>${confBadgeHtml}</td>
+      <td>${offsetBadgeHtml}</td>
+      <td>${isCorrect}</td>
       <td>${
         w.video_path 
-          ? `<video src="${w.video_path}" controls width="200"></video>` 
+          ? `<video src="${w.video_path}" controls width="150" onerror="this.onerror=null;this.src='';this.parentNode.textContent='No data';"></video>` 
           : "N/A"
       }</td>
       <td>${
-        w.melspectrogram_path 
-          ? `<img src="${w.melspectrogram_path}" width="200" alt="Melspec">`
+        w.melspectrogram_path
+          ? `<img src="${w.melspectrogram_path}" width="150" alt="Melspec" onerror="this.onerror=null;this.src='';this.parentNode.textContent='No data';">`
           : "N/A"
       }</td>
     `;
@@ -371,28 +501,13 @@ function createSampleCard(sample) {
 
   table.appendChild(thead);
   table.appendChild(tbody);
-  windowSection.appendChild(table);
-  body.appendChild(windowSection);
-
-  // Toggle logic
-  header.addEventListener("click", () => {
-    const currentlyHidden = body.style.display === "none";
-    body.style.display = currentlyHidden ? "block" : "none";
-    icon.textContent = currentlyHidden ? "▼" : "▲";
-  });
-
-  // By default, show expanded
-  body.style.display = "block";
-  icon.textContent = "▼";
-
-  card.appendChild(header);
-  card.appendChild(body);
-  return card;
+  container.appendChild(table);
+  return container;
 }
 
-// ---------------------------------------------------------
-// Collapse/Expand All
-// ---------------------------------------------------------
+// ------------------------------------------------------------------------------------------
+// Collapse/Expand all
+// ------------------------------------------------------------------------------------------
 function toggleAllCards(expand) {
   const cardBodies = document.querySelectorAll(".collapse-body");
   const icons = document.querySelectorAll(".collapse-icon");
@@ -408,17 +523,16 @@ function toggleAllCards(expand) {
   });
 }
 
-// ---------------------------------------------------------
+// ------------------------------------------------------------------------------------------
 // Global Stats
-// ---------------------------------------------------------
+// ------------------------------------------------------------------------------------------
 function renderGlobalStats(samples) {
-  const statsContainer = document.getElementById("global-stats");
+  const statsEl = document.getElementById("global-stats");
   if (!samples.length) {
-    statsContainer.innerHTML = "No samples available for stats.";
+    statsEl.innerHTML = "No samples available with current filters.";
     return;
   }
 
-  // Let’s compute some overall final metrics
   let countCorrect = 0;
   let sumConf = 0;
   let sumOffset = 0;
@@ -428,10 +542,10 @@ function renderGlobalStats(samples) {
     const final = s.final_metrics || {};
     const offset = final.offset_from_correct;
     const conf = final.confidence;
-    if (offset === 0) countCorrect += 1;
+    if (offset === 0) countCorrect++;
     if (typeof offset === "number") {
       sumOffset += offset;
-      validOffsetCount += 1;
+      validOffsetCount++;
     }
     if (typeof conf === "number") {
       sumConf += conf;
@@ -439,14 +553,14 @@ function renderGlobalStats(samples) {
   });
 
   const n = samples.length;
-  const avgConf = sumConf / n;
-  const avgOffset = validOffsetCount > 0 ? (sumOffset / validOffsetCount) : NaN;
   const accuracy = (countCorrect / n) * 100;
+  const avgConf = sumConf / n;
+  const avgOffset = validOffsetCount > 0 ? sumOffset / validOffsetCount : NaN;
 
-  statsContainer.innerHTML = `
-    <strong>Total Samples:</strong> ${n} <br/>
-    <strong>Accuracy (final predictions):</strong> ${accuracy.toFixed(1)}% <br/>
-    <strong>Average Final Confidence:</strong> ${isNaN(avgConf) ? "N/A" : avgConf.toFixed(3)} <br/>
-    <strong>Average Offset from Correct:</strong> ${isNaN(avgOffset) ? "N/A" : avgOffset.toFixed(2)} <br/>
+  statsEl.innerHTML = `
+    <strong>Total Samples:</strong> ${n}<br/>
+    <strong>Accuracy (final predictions):</strong> ${accuracy.toFixed(1)}%<br/>
+    <strong>Average Final Confidence:</strong> ${isNaN(avgConf) ? "N/A" : avgConf.toFixed(3)}<br/>
+    <strong>Average Offset (among valid offsets):</strong> ${isNaN(avgOffset) ? "N/A" : avgOffset.toFixed(2)}
   `;
 }
