@@ -1,136 +1,183 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>AV Experiment Results - Expanded</title>
-  <!-- Include Bootstrap CSS (CDN link) -->
-  <link rel="stylesheet" 
-        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" 
-        integrity="sha384-ENjdO4Dr2bkBIFxQpe8LWkWK8Ylh1AwD77I7lg6+aCeF/t3cA6/MD2cxhn8bDf3F" 
-        crossorigin="anonymous">
+  <meta charset="UTF-8" />
+  <title>AV Experiment Results (Modernized)</title>
+  
+  <!-- Bootstrap CSS (CDN) -->
+  <link 
+    rel="stylesheet" 
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" 
+    integrity="sha384-ENjdO4Dr2bkBIFxQpe8LWkWK8Ylh1AwD77I7lg6+aCeF/t3cA6/MD2cxhn8bDf3F" 
+    crossorigin="anonymous"
+  >
+  
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-light">
+<div class="container my-4">
 
-  <div class="container my-4">
-    <h1 class="mb-4 text-center">AV Experiment Results (Expanded)</h1>
+  <h1 class="mb-4 text-center">AV Experiment Results</h1>
 
-    <!-- Parameter Controls Section -->
-    <div class="card mb-3">
-      <div class="card-header">Global Controls</div>
-      <div class="card-body">
-        <!-- Confidence / Offset / Etc. Thresholds -->
-        <div class="row mb-3">
-          <div class="col-sm-6 col-md-4 col-lg-3 mb-3">
-            <label for="offset-threshold-almost" class="form-label">
-              "Almost Correct" Offset Threshold
-            </label>
-            <input type="number" class="form-control" id="offset-threshold-almost" 
-                   value="1" step="1" min="0">
-          </div>
-          <div class="col-sm-6 col-md-4 col-lg-3 mb-3">
-            <label for="offset-threshold-verywrong" class="form-label">
-              "Very Incorrect" Offset Threshold
-            </label>
-            <input type="number" class="form-control" id="offset-threshold-verywrong" 
-                   value="3" step="1" min="1">
-          </div>
-          <div class="col-sm-6 col-md-4 col-lg-3 mb-3">
-            <label for="conf-threshold-high" class="form-label">
-              High Confidence Threshold
-            </label>
-            <input type="number" class="form-control" id="conf-threshold-high" 
-                   value="0.75" step="0.05" min="0" max="1">
-          </div>
-          <div class="col-sm-6 col-md-4 col-lg-3 mb-3">
-            <label for="conf-threshold-low" class="form-label">
-              Low Confidence Threshold
-            </label>
-            <input type="number" class="form-control" id="conf-threshold-low" 
-                   value="0.25" step="0.05" min="0" max="1">
-          </div>
+  <!-- Parameter Controls Section -->
+  <div class="card mb-3 shadow-sm">
+    <div class="card-header">Global Controls</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <!-- Thresholds -->
+        <div class="col-sm-6 col-md-3">
+          <label for="offset-threshold-almost" class="form-label">
+            "Almost Correct" Offset Threshold
+          </label>
+          <input 
+            type="number" 
+            class="form-control" 
+            id="offset-threshold-almost" 
+            value="1"
+            step="1" 
+            min="0"
+          >
         </div>
-        
-        <!-- Additional Filters -->
-        <div class="row mb-3">
-          <div class="col">
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" id="filter-correct" checked>
-              <label class="form-check-label" for="filter-correct">Show Correct</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" id="filter-almost" checked>
-              <label class="form-check-label" for="filter-almost">Show Almost Correct</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" id="filter-incorrect" checked>
-              <label class="form-check-label" for="filter-incorrect">Show Very Incorrect</label>
-            </div>
-          </div>
+        <div class="col-sm-6 col-md-3">
+          <label for="offset-threshold-verywrong" class="form-label">
+            "Very Incorrect" Offset Threshold
+          </label>
+          <input 
+            type="number" 
+            class="form-control" 
+            id="offset-threshold-verywrong" 
+            value="3"
+            step="1" 
+            min="1"
+          >
         </div>
+        <div class="col-sm-6 col-md-3">
+          <label for="conf-threshold-high" class="form-label">
+            High Confidence Threshold
+          </label>
+          <input 
+            type="number" 
+            class="form-control" 
+            id="conf-threshold-high" 
+            value="0.75"
+            step="0.05" 
+            min="0" 
+            max="1"
+          >
+        </div>
+        <div class="col-sm-6 col-md-3">
+          <label for="conf-threshold-low" class="form-label">
+            Low Confidence Threshold
+          </label>
+          <input 
+            type="number" 
+            class="form-control" 
+            id="conf-threshold-low" 
+            value="0.25"
+            step="0.05" 
+            min="0" 
+            max="1"
+          >
+        </div>
+      </div>
 
-        <div class="row mb-3">
-          <div class="col">
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" id="filter-confident" checked>
-              <label class="form-check-label" for="filter-confident">Show High Confidence</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" id="filter-unconfident" checked>
-              <label class="form-check-label" for="filter-unconfident">Show Low Confidence</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" id="filter-majority-wrong-final-correct" checked>
-              <label class="form-check-label" for="filter-majority-wrong-final-correct">
-                Show "Turnaround" Cases
-              </label>
-            </div>
+      <hr class="my-4">
+
+      <!-- Additional Filters -->
+      <div class="row g-3 align-items-center mb-3">
+        <div class="col-auto">
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="filter-correct" checked>
+            <label class="form-check-label" for="filter-correct">Show Correct</label>
           </div>
-        </div>
-        
-        <!-- Sample Index Filter -->
-        <div class="row">
-          <div class="col-sm-6 col-md-4 col-lg-3">
-            <label for="filter-sample-index" class="form-label">
-              Filter by Sample # (exact match or comma-separated list)
-            </label>
-            <input type="text" class="form-control" id="filter-sample-index" placeholder="e.g., 10, 15, 99">
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="filter-almost" checked>
+            <label class="form-check-label" for="filter-almost">Show Almost</label>
           </div>
-          <div class="col-sm-6 col-md-4 col-lg-3 d-flex align-items-end">
-            <button class="btn btn-secondary me-2" id="btn-apply-filters">
-              Apply Filters
-            </button>
-            <button class="btn btn-warning" id="btn-reset-filters">
-              Reset Filters
-            </button>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="filter-incorrect" checked>
+            <label class="form-check-label" for="filter-incorrect">Show Very Incorrect</label>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Collapse / Expand All Buttons -->
-    <div class="d-flex justify-content-end mb-3">
-      <button class="btn btn-outline-secondary me-2" id="btn-collapse-all">Collapse All</button>
-      <button class="btn btn-outline-secondary" id="btn-expand-all">Expand All</button>
-    </div>
+      <div class="row g-3 align-items-center mb-3">
+        <div class="col-auto">
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="filter-confident" checked>
+            <label class="form-check-label" for="filter-confident">Show High Conf.</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="filter-unconfident" checked>
+            <label class="form-check-label" for="filter-unconfident">Show Low Conf.</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input 
+              class="form-check-input" 
+              type="checkbox" 
+              id="filter-majority-wrong-final-correct" 
+              checked
+            >
+            <label 
+              class="form-check-label" 
+              for="filter-majority-wrong-final-correct"
+            >
+              Show "Turnaround"
+            </label>
+          </div>
+        </div>
+      </div>
 
-    <!-- Global Summary / Stats -->
-    <div id="global-stats" class="alert alert-info" role="alert">
-      <!-- We’ll populate some top-level stats here (e.g., # of samples, average confidence, etc.) -->
-      <strong>Loading stats...</strong>
+      <div class="row g-3 align-items-end">
+        <!-- Sample Index Filter -->
+        <div class="col-sm-6 col-md-4 col-lg-3">
+          <label for="filter-sample-index" class="form-label">
+            Filter by Sample # (comma-separated)
+          </label>
+          <input 
+            type="text" 
+            class="form-control" 
+            id="filter-sample-index" 
+            placeholder="e.g., 10, 15, 99"
+          >
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-secondary" id="btn-apply-filters">
+            Apply
+          </button>
+          <button class="btn btn-warning" id="btn-reset-filters">
+            Reset
+          </button>
+        </div>
+      </div>
     </div>
-
-    <!-- Where samples will appear -->
-    <div id="sample-container"></div>
   </div>
 
-  <!-- Bootstrap JS (if needed for collapsible or other components) -->
-  <script 
-    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" 
-    integrity="sha384-pp6NCzJBcTTZPQf5JW9gmSJHuwua6EqUOkE8bceTmSc2n50MimUdfwIF66KD24rX" 
-    crossorigin="anonymous"></script>
+  <!-- Collapse / Expand All Buttons -->
+  <div class="d-flex justify-content-end mb-3">
+    <button class="btn btn-outline-secondary me-2" id="btn-collapse-all">Collapse All</button>
+    <button class="btn btn-outline-secondary" id="btn-expand-all">Expand All</button>
+  </div>
 
-  <!-- Your custom script -->
-  <script src="scripts.js"></script>
+  <!-- Global Stats -->
+  <div id="global-stats" class="alert alert-info" role="alert">
+    <strong>Loading stats...</strong>
+  </div>
+
+  <!-- Where Samples Will Appear -->
+  <div id="sample-container"></div>
+
+</div>
+
+<!-- Bootstrap JS (for collapsibles, etc.) -->
+<script 
+  src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" 
+  integrity="sha384-pp6NCzJBcTTZPQf5JW9gmSJHuwua6EqUOkE8bceTmSc2n50MimUdfwIF66KD24rX" 
+  crossorigin="anonymous"
+></script>
+
+<!-- Your Custom Script -->
+<script src="scripts.js"></script>
+
 </body>
 </html>
