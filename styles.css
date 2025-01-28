@@ -1,4 +1,6 @@
-/* Example CSS */
+body {
+  background-color: #f8f9fa !important;
+}
 
 .sample-card {
   border-radius: 6px;
@@ -20,8 +22,6 @@
   margin-left: 4px;
 }
 
-/* This ensures the body background is light, 
-   but you can style further if you want. */
-body {
-  background-color: #f8f9fa !important;
+table td[data-bar] {
+  min-width: 160px; /* a bit more space for the bar chart cell */
 }
