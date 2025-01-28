@@ -1,31 +1,19 @@
-.sample-card {
-  margin: 1em 0;
-  padding: 1em;
+body {
+  background-color: #f8f9fa; /* light gray from Bootstrap's palette */
 }
 
-.sample-card.correct {
-  border-left: 4px solid green;
-  background-color: #e0ffe0;
+.card {
+  border-radius: 6px;
 }
 
-.sample-card.almost {
-  border-left: 4px solid orange;
-  background-color: #fff3e0;
+.collapse-icon {
+  font-weight: bold;
 }
 
-.sample-card.veryWrong {
-  border-left: 4px solid red;
-  background-color: #ffe0e0;
+.collapse-body {
+  /* We toggle display in JS, no default needed here. */
 }
 
-.sample-card.highConf {
-  outline: 2px dashed #333;
-}
-
-.sample-card.lowConf {
-  opacity: 0.8;
-}
-
-.sample-card.turnaround {
-  box-shadow: 0 0 10px 5px gold;
+.table th, .table td {
+  vertical-align: middle !important;
 }
