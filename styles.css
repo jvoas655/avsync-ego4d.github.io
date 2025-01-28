@@ -1,0 +1,31 @@
+.sample-card {
+  margin: 1em 0;
+  padding: 1em;
+}
+
+.sample-card.correct {
+  border-left: 4px solid green;
+  background-color: #e0ffe0;
+}
+
+.sample-card.almost {
+  border-left: 4px solid orange;
+  background-color: #fff3e0;
+}
+
+.sample-card.veryWrong {
+  border-left: 4px solid red;
+  background-color: #ffe0e0;
+}
+
+.sample-card.highConf {
+  outline: 2px dashed #333;
+}
+
+.sample-card.lowConf {
+  opacity: 0.8;
+}
+
+.sample-card.turnaround {
+  box-shadow: 0 0 10px 5px gold;
+}
