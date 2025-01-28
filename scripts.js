@@ -6,26 +6,21 @@ let offsetThresholdVeryWrong = 3;
 let highConfidenceThreshold = 0.75;
 let lowConfidenceThreshold = 0.25;
 
-// We'll store the sample data, and for each sample, a "card" in the DOM
+// We'll store sample data, plus a map from sample_idx -> card element
 let allSamples = [];
-let sampleCards = {}; // sample_idx -> DOM element
+let sampleCards = {};
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Load the JSON
   fetch("data/samples.json")
     .then(res => res.json())
     .then(data => {
       allSamples = data;
-      // Precompute stats for each sample
       allSamples.forEach(computeSampleStats);
 
-      // Create cards for each sample exactly once
       createAllSampleCards();
-
-      // Setup UI event listeners
       setupUI();
 
-      // Initial color update & filter apply
+      // Initial color update & filter application
       updateAllCardColors();
       applyFilters();
       renderGlobalStats(getFilteredSamples());
@@ -38,66 +33,51 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // -----------------------------------------------------
-// Stats computation for each sample
+// Stats computation
 // -----------------------------------------------------
 function computeSampleStats(sample) {
-  const windows = sample.window_metrics || [];
+  const w = sample.window_metrics || [];
   const offsets = [];
   const confs = [];
-
-  windows.forEach(w => {
-    if (typeof w.offset_from_correct === "number") offsets.push(w.offset_from_correct);
-    if (typeof w.confidence === "number") confs.push(w.confidence);
+  w.forEach(win => {
+    if (typeof win.offset_from_correct === "number") offsets.push(win.offset_from_correct);
+    if (typeof win.confidence === "number") confs.push(win.confidence);
   });
-
-  sample.stats = {
-    offset: getStats(offsets),
-    confidence: getStats(confs),
-  };
+  sample.stats = { offset: getStats(offsets), confidence: getStats(confs) };
 }
 
 function getStats(values) {
-  if (!values.length) {
-    return { min: null, max: null, mean: null, std: null };
-  }
+  if (!values.length) return { min: null, max: null, mean: null, std: null };
   const min = Math.min(...values);
   const max = Math.max(...values);
   const mean = values.reduce((a,b) => a + b, 0) / values.length;
   const variance = values.reduce((acc,val) => acc + (val - mean)**2, 0) / values.length;
-  return {
-    min,
-    max,
-    mean,
-    std: Math.sqrt(variance)
-  };
+  return { min, max, mean, std: Math.sqrt(variance) };
 }
 
 // -----------------------------------------------------
-// Create all sample cards (once) and store them
+// Build all sample cards (once)
 // -----------------------------------------------------
 function createAllSampleCards() {
   const container = document.getElementById("sample-container");
   container.innerHTML = "";
 
   allSamples.forEach(sample => {
-    // Build the card DOM
     const card = createSampleCard(sample);
-    // Store reference
     sampleCards[sample.sample_idx] = card;
-    // Append to container
     container.appendChild(card);
   });
 }
 
 /**
- * Create a single sample card, but do not set the video src immediately.
- * We'll lazy-load videos upon expansion.
+ * Create a single sample card (collapsed by default).
+ * We'll lazy-load videos & images on expansion.
  */
 function createSampleCard(sample) {
   const card = document.createElement("div");
   card.className = "card mb-4 shadow-sm border sample-card";
 
-  // Card header
+  // Header
   const header = document.createElement("div");
   header.className = "card-header d-flex justify-content-between align-items-center";
   header.style.cursor = "pointer";
@@ -111,25 +91,19 @@ function createSampleCard(sample) {
   icon.className = "collapse-icon";
   header.appendChild(icon);
 
-  // Body
+  // Body (collapsed by default)
   const body = document.createElement("div");
   body.className = "card-body collapse-body";
-  body.style.display = "none"; // start collapsed
-  body.innerHTML = ""; // We'll fill below
+  body.style.display = "none";
 
-  // Final Metrics section
-  const finalSection = createFinalMetricsSection(sample);
-  body.appendChild(finalSection);
-
-  // Full A/V section
-  const fullMediaSection = createFullMediaSection(sample);
-  body.appendChild(fullMediaSection);
-
+  // Final metrics
+  body.appendChild(createFinalMetricsSection(sample));
+  // Full A/V
+  body.appendChild(createFullMediaSection(sample));
   // Window table
-  const windowSection = createWindowTableSection(sample);
-  body.appendChild(windowSection);
+  body.appendChild(createWindowTableSection(sample));
 
-  // Store a flag indicating we haven't loaded videos yet
+  // We'll mark that we haven't lazy-loaded videos/images yet
   card.dataset.videosLoaded = "false";
 
   // Toggle expand/collapse
@@ -139,10 +113,9 @@ function createSampleCard(sample) {
       // Expand
       body.style.display = "block";
       icon.textContent = "▼";
-
-      // Lazy load videos if not already done
+      // Lazy load
       if (card.dataset.videosLoaded === "false") {
-        lazyLoadVideosForCard(card);
+        lazyLoadMedia(card);
         card.dataset.videosLoaded = "true";
       }
     } else {
@@ -157,46 +130,57 @@ function createSampleCard(sample) {
   return card;
 }
 
-/**
- * Called the first time a card is expanded. 
- * We set the .src for the videos in the "Full A/V" section and the window table.
- */
-function lazyLoadVideosForCard(card) {
-  // Find all <video> elements that have data-video-path or data-full-av
+// -----------------------------------------------------
+// Lazy-load videos & images when user expands
+// -----------------------------------------------------
+function lazyLoadMedia(card) {
+  // Videos
   const videos = card.querySelectorAll("video[data-video-url]");
-  videos.forEach(video => {
-    const url = video.dataset.videoUrl;
-    video.src = url; // now the browser actually fetches it
-  });
+  videos.forEach(v => (v.src = v.dataset.videoUrl));
+
+  // Images
+  const imgs = card.querySelectorAll("img[data-imgUrl]");
+  imgs.forEach(img => (img.src = img.dataset.imgUrl));
 }
 
 /**
- * Final metrics section. 
- * (All text, no video loading here.)
+ * Final metrics section, including bar chart for final "softmax_probs" + cross entropy.
  */
 function createFinalMetricsSection(sample) {
+  const final = sample.final_metrics || {};
   const container = document.createElement("div");
   container.className = "mb-3";
+
   container.innerHTML = `
     <h6 class="mb-2 fw-bold">Final Metrics</h6>
-    <!-- We'll inject the text/badges dynamically below. -->
+    <div class="row g-2">
+      <div class="col-sm-6" data-final-left></div>
+      <div class="col-sm-6" data-final-right></div>
+    </div>
+    <div class="mt-2" data-bar-chart></div>
   `;
 
-  const details = document.createElement("div");
-  details.className = "row g-2";
-  // We'll fill in text & color-coded badges when we do "updateAllCardColors()"
-  details.innerHTML = `
-    <div class="col-sm-6" data-final-left></div>
-    <div class="col-sm-6" data-final-right></div>
-    <div class="mt-3 border-top pt-2" data-final-stats></div>
+  // Cross Entropy & offset/rank
+  const ceEl = document.createElement("div");
+  ceEl.className = "mt-2";
+  ceEl.innerHTML = `
+    <strong>Cross Entropy:</strong> ${final.cross_entropy ?? "N/A"}<br/>
+    <strong>Rank of Correct Class:</strong> ${final.rank_of_correct_class ?? "N/A"}
   `;
-  container.appendChild(details);
+  container.appendChild(ceEl);
+
+  // Stats
+  const statsDiv = document.createElement("div");
+  statsDiv.className = "mt-2 border-top pt-2";
+  statsDiv.dataset.finalStats = ""; // We'll fill later in color update
+  container.appendChild(statsDiv);
 
   return container;
 }
 
 /**
- * Full A/V section, but do NOT set src. Use data-video-url or data-img-url for lazy load.
+ * Full media section. We do NOT set src immediately; we store them in data-video-url
+ * or data-imgUrl for lazyLoadMedia() to handle on expand.
  */
 function createFullMediaSection(sample) {
   const container = document.createElement("div");
@@ -207,50 +191,46 @@ function createFullMediaSection(sample) {
   title.className = "fw-bold mb-2";
   container.appendChild(title);
 
-  // Attempt to derive folder path from the first window video path:
+  // Derive folder path from any window's video_path or default:
   let folderPath = `data/sample_${sample.sample_idx}`;
   const w = sample.window_metrics || [];
   if (w.length && w[0].video_path) {
     const m = w[0].video_path.match(/^(.*sample_\d+)\/.*$/);
-    if (m) {
-      folderPath = m[1];
-    }
+    if (m) folderPath = m[1];
   }
+
   const fullVidPath = `${folderPath}/full_window.mp4`;
   const fullMelspecPath = `${folderPath}/melspectrogram_full.png`;
 
-  const video = document.createElement("video");
-  video.width = 400;
-  video.controls = true;
-  // Instead of video.src, store it in data- attribute
-  video.dataset.videoUrl = fullVidPath;
-  video.className = "mb-2 d-block";
-  // onerror => show "No data" if 404
-  video.onerror = () => {
-    video.replaceWith(document.createTextNode("No data found for full video."));
+  // Video
+  const vid = document.createElement("video");
+  vid.width = 400;
+  vid.controls = true;
+  vid.className = "mb-2 d-block";
+  vid.dataset.videoUrl = fullVidPath; // lazy
+  vid.onerror = () => {
+    vid.replaceWith(document.createTextNode("No full video found."));
   };
-  container.appendChild(video);
+  container.appendChild(vid);
 
+  // Spectrogram
   const img = document.createElement("img");
   img.width = 600;
   img.alt = "Full Melspectrogram";
-  // If the image 404s, remove it
+  img.dataset.imgUrl = fullMelspecPath; // lazy
   img.onerror = () => {
-    img.replaceWith(document.createTextNode("No full melspectrogram found."));
+    img.replaceWith(document.createTextNode("No full spectrogram found."));
   };
-  img.src = ""; // not set for lazy load? Actually, images don't auto-play. 
-  // But if you want to also lazy-load the image, you can store it in a data-attr as well:
-  // Let's do that:
-  img.dataset.imgUrl = fullMelspecPath;
-  // We'll set it on expand. We'll do the same approach in lazyLoadVideosForCard.
-
   container.appendChild(img);
 
   return container;
 }
 
 /**
- * Window table, storing video paths in data-video-url for lazy load.
+ * Window table with:
+ * - Confidence & offset as color-coded badges
+ * - Cross entropy
+ * - Softmax bar chart
  */
 function createWindowTableSection(sample) {
   const container = document.createElement("div");
@@ -268,8 +248,7 @@ function createWindowTableSection(sample) {
   }
 
   const table = document.createElement("table");
-  table.className = "table table-striped table-bordered table-sm align-middle";
-
+  table.className = "table table-striped table-bordered table-hover align-middle";
   const thead = document.createElement("thead");
   thead.innerHTML = `
     <tr class="table-secondary">
@@ -279,6 +258,8 @@ function createWindowTableSection(sample) {
       <th>Confidence</th>
       <th>Offset</th>
       <th>Correct?</th>
+      <th>Cross Entropy</th>
+      <th>Bar Chart</th>
       <th>Video</th>
       <th>Melspec</th>
     </tr>
@@ -289,26 +270,37 @@ function createWindowTableSection(sample) {
   windows.forEach(w => {
     const row = document.createElement("tr");
 
-    // We'll place placeholders for confidence & offset badges that we color later
     row.innerHTML = `
       <td>${w.iteration ?? ""}</td>
       <td>${w.predicted_class ?? ""}</td>
       <td>${w.ground_truth ?? ""}</td>
       <td data-conf></td>
       <td data-offset></td>
-      <td data-correct></td>
+      <td>${w.correct ? `<span class="badge bg-success">Yes</span>` : `<span class="badge bg-danger">No</span>`}</td>
+      <td>${w.cross_entropy ?? "N/A"}</td>
+      <td data-bar></td>
       <td data-video></td>
       <td data-melspec></td>
     `;
-    // We'll color the badges in "updateAllCardColors()"
 
-    // Correct? => badge
-    const correctTd = row.querySelector("[data-correct]");
-    correctTd.innerHTML = w.correct
-      ? `<span class="badge bg-success">Yes</span>`
-      : `<span class="badge bg-danger">No</span>`;
+    // Conf / offset stored so we can color them
+    row.querySelector("[data-conf]").dataset.confValue = w.confidence ?? "null";
+    row.querySelector("[data-offset]").dataset.offsetValue = w.offset_from_correct ?? "null";
 
-    // For the video & melspec columns, we do data attributes
+    // Bar chart for softmax_probs
+    const barTd = row.querySelector("[data-bar]");
+    if (w.softmax_probs) {
+      const chartDiv = createSoftmaxBarChart(
+        w.softmax_probs,
+        w.ground_truth,
+        w.predicted_class
+      );
+      barTd.appendChild(chartDiv);
+    } else {
+      barTd.textContent = "N/A";
+    }
+
+    // Video
     const videoTd = row.querySelector("[data-video]");
     if (w.video_path) {
       const vid = document.createElement("video");
@@ -323,6 +315,7 @@ function createWindowTableSection(sample) {
       videoTd.textContent = "N/A";
     }
 
+    // Melspec
     const melspecTd = row.querySelector("[data-melspec]");
     if (w.melspectrogram_path) {
       const img = document.createElement("img");
@@ -337,10 +330,6 @@ function createWindowTableSection(sample) {
       melspecTd.textContent = "N/A";
     }
 
-    // We'll store offset/conf in dataset so we can color them easily
-    row.querySelector("[data-offset]").dataset.offsetValue = w.offset_from_correct ?? "null";
-    row.querySelector("[data-conf]").dataset.confValue = w.confidence ?? "null";
-
     tbody.appendChild(row);
   });
 
@@ -349,26 +338,80 @@ function createWindowTableSection(sample) {
   return container;
 }
 
-// -----------------------------------------------------
-// Lazy-load final function (set src for data-video-url, data-imgUrl) on expand
-// -----------------------------------------------------
-function lazyLoadVideosForCard(card) {
-  // videos
-  const videos = card.querySelectorAll("video[data-video-url]");
-  videos.forEach(vid => {
-    vid.src = vid.dataset.videoUrl;
-  });
-  // images
-  const imgs = card.querySelectorAll("img[data-imgUrl]");
-  imgs.forEach(img => {
-    img.src = img.dataset.imgUrl;
-  });
+/**
+ * Creates a small "bar chart" of the softmax array.
+ * - highest bar: red if it's not the ground truth, green if it matches ground truth
+ * - ground truth bar: yellow if not top, else green if it is top
+ */
+function createSoftmaxBarChart(probs, groundTruth, predictedClass) {
+  // Find index of max prob
+  let maxVal = -Infinity;
+  let maxIdx = 0;
+  for (let i = 0; i < probs.length; i++) {
+    if (probs[i] > maxVal) {
+      maxVal = probs[i];
+      maxIdx = i;
+    }
+  }
+
+  // We'll make a row of bars
+  // each bar is ~ 30px high * prob ? or do a width-based approach?
+  // Let's do a horizontal bar with width scaled by prob
+  const container = document.createElement("div");
+  container.className = "d-flex flex-row align-items-end flex-wrap";
+  container.style.maxWidth = "250px";
+  container.style.gap = "2px";
+
+  const highestIsCorrect = (maxIdx === groundTruth);
+
+  for (let i = 0; i < probs.length; i++) {
+    const bar = document.createElement("div");
+    const p = probs[i];
+    const scaledWidth = Math.round(p * 100); // 0-100%
+
+    // Decide color:
+    // - if i == maxIdx && i == groundTruth => green
+    // - else if i == maxIdx => red
+    // - else if i == groundTruth => yellow
+    // - else gray
+    let bgColor = "#ccc";
+    if (i === maxIdx && i === groundTruth) {
+      bgColor = "green";
+    } else if (i === maxIdx) {
+      bgColor = "red";
+    } else if (i === groundTruth) {
+      bgColor = "gold"; // or "yellow"
+    }
+
+    bar.style.backgroundColor = bgColor;
+    bar.style.height = "12px";
+    bar.style.width = scaledWidth + "%"; // scale by prob
+    bar.style.flex = "0 0 auto"; // keep bars in row
+    bar.title = `Class ${i}: ${(p*100).toFixed(1)}%`;
+
+    container.appendChild(bar);
+  }
+
+  return container;
 }
 
 // -----------------------------------------------------
-// UI event setup
+// Lazy load expansions
+// -----------------------------------------------------
+function lazyLoadMedia(card) {
+  // videos
+  const vids = card.querySelectorAll("video[data-video-url]");
+  vids.forEach(v => (v.src = v.dataset.videoUrl));
+  // images
+  const imgs = card.querySelectorAll("img[data-imgUrl]");
+  imgs.forEach(img => (img.src = img.dataset.imgUrl));
+}
+
+// -----------------------------------------------------
+// UI
 // -----------------------------------------------------
 function setupUI() {
+  // Threshold changes => recolor badges
   document.getElementById("offset-threshold-almost").addEventListener("change", e => {
     offsetThresholdAlmost = parseFloat(e.target.value) || 1;
     updateAllCardColors();
@@ -386,10 +429,10 @@ function setupUI() {
     updateAllCardColors();
   });
 
-  // Filter checkboxes & apply button
+  // Filters
   [
     "filter-turnaround", "filter-lowConf", "filter-midConf", "filter-highConf",
-    "filter-correct", "filter-almost", "filter-incorrect"
+    "filter-hasVideo", "filter-correct", "filter-almost", "filter-incorrect"
   ].forEach(id => {
     document.getElementById(id).addEventListener("change", () => {
       applyFilters();
@@ -402,20 +445,12 @@ function setupUI() {
   });
   document.getElementById("btn-reset-filters").addEventListener("click", resetFilters);
 
-  // Collapse/Expand all
+  // Collapse / Expand all
   document.getElementById("btn-collapse-all").addEventListener("click", () => toggleAllCards(false));
   document.getElementById("btn-expand-all").addEventListener("click", () => toggleAllCards(true));
 }
 
 function resetFilters() {
-  document.getElementById("filter-turnaround").checked = false;
-  document.getElementById("filter-lowConf").checked = true;
-  document.getElementById("filter-midConf").checked = true;
-  document.getElementById("filter-highConf").checked = true;
-  document.getElementById("filter-correct").checked = true;
-  document.getElementById("filter-almost").checked = true;
-  document.getElementById("filter-incorrect").checked = true;
-
   document.getElementById("offset-threshold-almost").value = 1;
   document.getElementById("offset-threshold-verywrong").value = 3;
   document.getElementById("conf-threshold-high").value = 0.75;
@@ -425,6 +460,15 @@ function resetFilters() {
   offsetThresholdVeryWrong = 3;
   highConfidenceThreshold = 0.75;
   lowConfidenceThreshold = 0.25;
+
+  [
+    "filter-turnaround", "filter-hasVideo"
+  ].forEach(id => (document.getElementById(id).checked = false));
+
+  [
+    "filter-lowConf", "filter-midConf", "filter-highConf",
+    "filter-correct", "filter-almost", "filter-incorrect"
+  ].forEach(id => (document.getElementById(id).checked = true));
 
   document.getElementById("filter-sample-index").value = "";
 
@@ -437,6 +481,16 @@ function resetFilters() {
 // Filtering
 // -----------------------------------------------------
 function applyFilters() {
+  const onlyTurnaround = document.getElementById("filter-turnaround").checked;
+  const showLow = document.getElementById("filter-lowConf").checked;
+  const showMid = document.getElementById("filter-midConf").checked;
+  const showHigh = document.getElementById("filter-highConf").checked;
+  const onlyHasVideo = document.getElementById("filter-hasVideo").checked;
+
+  const showCorrect = document.getElementById("filter-correct").checked;
+  const showAlmost = document.getElementById("filter-almost").checked;
+  const showVeryWrong = document.getElementById("filter-incorrect").checked;
+
   const sampleIndexInput = document.getElementById("filter-sample-index").value.trim();
   let sampleIndexFilter = null;
   if (sampleIndexInput) {
@@ -444,58 +498,40 @@ function applyFilters() {
     sampleIndexFilter = sampleIndexFilter.filter(n => !isNaN(n));
   }
 
-  // Turnaround
-  const onlyTurnaround = document.getElementById("filter-turnaround").checked;
-
-  // Confidence checkboxes
-  const showLow = document.getElementById("filter-lowConf").checked;
-  const showMid = document.getElementById("filter-midConf").checked;
-  const showHigh = document.getElementById("filter-highConf").checked;
-
-  // Offset checkboxes
-  const showCorrect = document.getElementById("filter-correct").checked;
-  const showAlmost = document.getElementById("filter-almost").checked;
-  const showVeryWrong = document.getElementById("filter-incorrect").checked;
-
-  allSamples.forEach(sample => {
-    // Decide if sample should be shown
+  allSamples.forEach(s => {
     const pass = doesSamplePassFilter(
-      sample,
-      sampleIndexFilter,
-      onlyTurnaround,
-      showLow, showMid, showHigh,
-      showCorrect, showAlmost, showVeryWrong
+      s,
+      onlyTurnaround, showLow, showMid, showHigh, onlyHasVideo,
+      showCorrect, showAlmost, showVeryWrong,
+      sampleIndexFilter
     );
-    const cardEl = sampleCards[sample.sample_idx];
-    cardEl.style.display = pass ? "block" : "none";
+    sampleCards[s.sample_idx].style.display = pass ? "block" : "none";
   });
 }
 
-/** Return true if sample passes all the filters. */
 function doesSamplePassFilter(
   sample,
-  sampleIndexFilter,
-  onlyTurnaround,
-  showLow, showMid, showHigh,
-  showCorrect, showAlmost, showVeryWrong
+  onlyTurnaround, showLow, showMid, showHigh, onlyHasVideo,
+  showCorrect, showAlmost, showVeryWrong,
+  sampleIndexFilter
 ) {
   const final = sample.final_metrics || {};
   const offset = final.offset_from_correct;
-  const conf = final.confidence || 0;
+  const conf = final.confidence ?? 0;
 
   // Turnaround check
   if (onlyTurnaround) {
-    const windows = sample.window_metrics || [];
-    const nW = windows.length;
-    const nCorrect = windows.filter(w => w.correct).length;
+    const w = sample.window_metrics || [];
+    const nW = w.length;
+    const nCorrect = w.filter(x => x.correct).length;
     const majorityWrong = (nCorrect < nW/2);
-    const isCorrectFinal = (offset === 0);
-    const isTurnaround = (majorityWrong && isCorrectFinal);
+    const finalCorrect = (offset === 0);
+    const isTurnaround = (majorityWrong && finalCorrect);
     if (!isTurnaround) return false;
   }
 
   // Confidence category
-  const confCat = getConfidenceCategory(conf); // "low" / "mid" / "high"
+  const confCat = getConfidenceCategory(conf);
   if (confCat === "low" && !showLow) return false;
   if (confCat === "mid" && !showMid) return false;
   if (confCat === "high" && !showHigh) return false;
@@ -506,6 +542,13 @@ function doesSamplePassFilter(
   if (offCat === "almost" && !showAlmost) return false;
   if (offCat === "veryWrong" && !showVeryWrong) return false;
 
+  // "Only samples w/ video" filter
+  if (onlyHasVideo) {
+    // Check if any window_metrics have non-empty video_path
+    const hasAnyVideo = (sample.window_metrics || []).some(w => w.video_path);
+    if (!hasAnyVideo) return false;
+  }
+
   // Sample index filter
   if (sampleIndexFilter && sampleIndexFilter.length > 0) {
     if (!sampleIndexFilter.includes(sample.sample_idx)) return false;
@@ -514,7 +557,9 @@ function doesSamplePassFilter(
   return true;
 }
 
-// Same logic as before
+// -----------------------------------------------------
+// Confidence / Offset categories
+// -----------------------------------------------------
 function getConfidenceCategory(conf) {
   if (conf >= highConfidenceThreshold) return "high";
   if (conf <= lowConfidenceThreshold) return "low";
@@ -528,54 +573,49 @@ function getOffsetCategory(offset) {
 }
 
 // -----------------------------------------------------
-// Update color badges (offset/conf) in final metrics & window table
-// whenever thresholds change
+// Re-color offset/conf in final & window table badges
 // -----------------------------------------------------
 function updateAllCardColors() {
-  allSamples.forEach(sample => {
-    const cardEl = sampleCards[sample.sample_idx];
-    updateCardColors(sample, cardEl);
+  allSamples.forEach(s => {
+    const cardEl = sampleCards[s.sample_idx];
+    updateCardColors(s, cardEl);
   });
 }
 
-/**
- * Re-color offset/conf badges in final metrics & window rows
- */
 function updateCardColors(sample, cardEl) {
   // Final metrics
   const final = sample.final_metrics || {};
   const offset = final.offset_from_correct;
   const conf = final.confidence;
 
-  // Fill in final metrics left / right columns
-  const leftCol = cardEl.querySelector("[data-final-left]");
-  const rightCol = cardEl.querySelector("[data-final-right]");
+  // Fill final columns
+  const leftDiv = cardEl.querySelector("[data-final-left]");
+  const rightDiv = cardEl.querySelector("[data-final-right]");
   const statsDiv = cardEl.querySelector("[data-final-stats]");
-
-  if (leftCol && rightCol && statsDiv) {
-    leftCol.innerHTML = `
+  if (leftDiv && rightDiv && statsDiv) {
+    leftDiv.innerHTML = `
       <div><strong>Ground Truth:</strong> ${final.ground_truth ?? "N/A"}</div>
       <div><strong>Predicted:</strong> ${final.predicted_class ?? "N/A"}</div>
     `;
-    const correctBadgeClass = (offset === 0) ? "bg-success" : "bg-danger";
-    const correctText = (offset === 0) ? "Yes" : "No";
 
-    const offsetBadgeClass = getOffsetColorClass(offset);
-    const offsetText = (offset !== null && offset !== undefined) ? offset : "N/A";
+    // Correct? => color-coded
+    const isCorrect = (offset === 0);
+    const correctBadge = `<span class="badge ${isCorrect ? "bg-success" : "bg-danger"}">
+      ${isCorrect ? "Yes" : "No"}
+    </span>`;
 
-    const confBadgeClass = getConfidenceColorClass(conf);
-    const confText = (conf !== undefined && conf !== null) ? conf.toFixed(3) : "N/A";
+    const offBadge = `<span class="badge ${getOffsetColorClass(offset)}">
+      ${offset ?? "N/A"}
+    </span>`;
 
-    rightCol.innerHTML = `
-      <div><strong>Correct?</strong> 
-        <span class="badge ${correctBadgeClass}">${correctText}</span>
-      </div>
-      <div><strong>Offset:</strong> 
-        <span class="badge ${offsetBadgeClass}">${offsetText}</span>
-      </div>
-      <div><strong>Confidence:</strong> 
-        <span class="badge ${confBadgeClass}">${confText}</span>
-      </div>
+    const confBadge = `<span class="badge ${getConfidenceColorClass(conf)}">
+      ${conf !== undefined && conf !== null ? conf.toFixed(3) : "N/A"}
+    </span>`;
+
+    rightDiv.innerHTML = `
+      <div><strong>Correct?</strong> ${correctBadge}</div>
+      <div><strong>Offset:</strong> ${offBadge}</div>
+      <div><strong>Confidence:</strong> ${confBadge}</div>
     `;
 
     // Window stats
@@ -595,26 +635,26 @@ function updateCardColors(sample, cardEl) {
   }
 
   // Window rows
-  const tableRows = cardEl.querySelectorAll("tr");
-  tableRows.forEach(row => {
-    const offsetTd = row.querySelector("[data-offset]");
-    const confTd = row.querySelector("[data-conf]");
-    if (offsetTd) {
-      const offVal = offsetTd.dataset.offsetValue;
-      if (offVal !== "null") {
-        const offNum = parseFloat(offVal);
-        const cls = getOffsetColorClass(offNum);
-        offsetTd.innerHTML = `<span class="badge ${cls}">${offNum}</span>`;
+  const rows = cardEl.querySelectorAll("tr");
+  rows.forEach(r => {
+    const offTd = r.querySelector("[data-offset]");
+    const confTd = r.querySelector("[data-conf]");
+    if (offTd) {
+      const val = offTd.dataset.offsetValue;
+      if (val !== "null") {
+        const num = parseFloat(val);
+        offTd.innerHTML = `<span class="badge ${getOffsetColorClass(num)}">${num}</span>`;
       } else {
-        offsetTd.innerHTML = `<span class="badge bg-secondary">N/A</span>`;
+        offTd.innerHTML = `<span class="badge bg-secondary">N/A</span>`;
       }
     }
     if (confTd) {
-      const confVal = confTd.dataset.confValue;
-      if (confVal !== "null") {
-        const cNum = parseFloat(confVal);
-        const cls = getConfidenceColorClass(cNum);
-        confTd.innerHTML = `<span class="badge ${cls}">${cNum.toFixed(3)}</span>`;
+      const val = confTd.dataset.confValue;
+      if (val !== "null") {
+        const num = parseFloat(val);
+        confTd.innerHTML = `<span class="badge ${getConfidenceColorClass(num)}">
+          ${num.toFixed(3)}
+        </span>`;
       } else {
         confTd.innerHTML = `<span class="badge bg-secondary">N/A</span>`;
       }
@@ -650,13 +690,11 @@ function toggleAllCards(expand) {
     const body = cardEl.querySelector(".collapse-body");
     const icon = cardEl.querySelector(".collapse-icon");
     if (!body) return;
-
     if (expand) {
       body.style.display = "block";
       if (icon) icon.textContent = "▼";
-      // If we haven't loaded videos yet, do it
       if (cardEl.dataset.videosLoaded === "false") {
-        lazyLoadVideosForCard(cardEl);
+        lazyLoadMedia(cardEl);
         cardEl.dataset.videosLoaded = "true";
       }
     } else {
@@ -667,7 +705,7 @@ function toggleAllCards(expand) {
 }
 
 // -----------------------------------------------------
-// Compute & display global stats on the currently visible samples
+// Global stats on the currently visible (unfiltered) samples
 // -----------------------------------------------------
 function renderGlobalStats(filteredSamples) {
   const el = document.getElementById("global-stats");
@@ -679,16 +717,16 @@ function renderGlobalStats(filteredSamples) {
   let countCorrect = 0;
   let sumConf = 0;
   let sumOffset = 0;
-  let validOffsets = 0;
+  let validOffs = 0;
 
   filteredSamples.forEach(s => {
-    const final = s.final_metrics || {};
-    const off = final.offset_from_correct;
-    const c = final.confidence;
+    const fin = s.final_metrics || {};
+    const off = fin.offset_from_correct;
+    const c = fin.confidence;
     if (off === 0) countCorrect++;
     if (typeof off === "number") {
       sumOffset += off;
-      validOffsets++;
+      validOffs++;
     }
     if (typeof c === "number") {
       sumConf += c;
@@ -698,19 +736,18 @@ function renderGlobalStats(filteredSamples) {
   const n = filteredSamples.length;
   const accuracy = (countCorrect / n) * 100;
   const avgConf = sumConf / n;
-  const avgOffset = (validOffsets > 0) ? (sumOffset / validOffsets) : NaN;
+  const avgOff = validOffs > 0 ? sumOffset / validOffs : NaN;
 
   el.innerHTML = `
     <strong>Total Samples:</strong> ${n}<br/>
     <strong>Accuracy (final predictions):</strong> ${accuracy.toFixed(1)}%<br/>
     <strong>Average Final Confidence:</strong> ${isNaN(avgConf) ? "N/A" : avgConf.toFixed(3)}<br/>
-    <strong>Average Offset (among valid offsets):</strong> ${isNaN(avgOffset) ? "N/A" : avgOffset.toFixed(2)}
+    <strong>Average Offset:</strong> ${isNaN(avgOff) ? "N/A" : avgOff.toFixed(2)}
   `;
 }
 
-/** Return an array of samples that are currently displayed (not filtered out). */
+/** Return array of samples currently displayed (not filtered out). */
 function getFilteredSamples() {
-  // We check which cards are visible
   return allSamples.filter(s => {
     const cardEl = sampleCards[s.sample_idx];
     return (cardEl.style.display !== "none");
