@@ -140,7 +140,11 @@ function lazyLoadMedia(card) {
 
   // Images
   const imgs = card.querySelectorAll("img[data-imgUrl]");
-  imgs.forEach(img => (img.src = img.dataset.imgUrl));
+  imgs.forEach(img => {
+    if (!img.src) {
+      img.src = img.dataset.imgUrl; // Trigger loading
+    }
+  });
 }
 
 /**
@@ -404,7 +408,13 @@ function lazyLoadMedia(card) {
   vids.forEach(v => (v.src = v.dataset.videoUrl));
   // images
   const imgs = card.querySelectorAll("img[data-imgUrl]");
-  imgs.forEach(img => (img.src = img.dataset.imgUrl));
+  // Lazy load images
+  const imgs = card.querySelectorAll("img[data-imgUrl]");
+  imgs.forEach(img => {
+    if (!img.src) {
+      img.src = img.dataset.imgUrl; // Trigger loading
+    }
+  });
 }
 
 // -----------------------------------------------------
