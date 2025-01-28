@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AV Experiment Results (Lazy-Loaded, Centered)</title>
+  <title>AV Experiment Results (Enhanced + Bar Charts)</title>
+
   <!-- Bootstrap CSS -->
   <link
     rel="stylesheet"
@@ -15,21 +16,20 @@
 <body class="bg-light">
 
 <!-- 
-  A full-width container to hold the background, 
-  then a centered wrapper with max-width to keep content from hugging the left. 
+  A fluid container with a centered max-width 
+  so the site isn't shoved left.
 -->
 <div class="container-fluid py-4">
   <div class="mx-auto" style="max-width: 1200px;">
-  
+
     <h1 class="mb-4 text-center">AV Experiment Results</h1>
 
     <!-- Global Controls -->
     <div class="card mb-3 shadow-sm">
       <div class="card-header fw-bold">Global Controls</div>
       <div class="card-body">
-        <div class="row g-3">
-
-          <!-- Offset thresholds -->
+        <!-- Thresholds (offset & confidence) -->
+        <div class="row g-3 mb-2">
           <div class="col-sm-6 col-md-3">
             <label for="offset-threshold-almost" class="form-label">
               "Almost Correct" Offset Threshold
@@ -56,8 +56,6 @@
               min="1"
             >
           </div>
-
-          <!-- Confidence thresholds -->
           <div class="col-sm-6 col-md-3">
             <label for="conf-threshold-high" class="form-label">
               High Confidence Threshold
@@ -88,11 +86,12 @@
           </div>
         </div>
 
-        <hr class="my-4">
+        <hr class="my-3">
 
-        <!-- Show Only Turnaround & Confidence Filters -->
+        <!-- Additional Filters -->
         <div class="row g-3 align-items-center mb-3">
           <div class="col-auto">
+            <!-- Turnaround filter -->
             <div class="form-check">
               <input class="form-check-input" type="checkbox" id="filter-turnaround">
               <label class="form-check-label" for="filter-turnaround">
@@ -100,8 +99,8 @@
               </label>
             </div>
           </div>
-
           <div class="col-auto">
+            <!-- Confidence category filters -->
             <div class="form-check form-check-inline">
               <input class="form-check-input" type="checkbox" id="filter-lowConf" checked>
               <label class="form-check-label" for="filter-lowConf">Show Low Conf.</label>
@@ -115,10 +114,19 @@
               <label class="form-check-label" for="filter-highConf">Show High Conf.</label>
             </div>
           </div>
+          <div class="col-auto">
+            <!-- Filter out samples w/o video -->
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="filter-hasVideo">
+              <label class="form-check-label" for="filter-hasVideo">
+                Show Only Samples w/ Video
+              </label>
+            </div>
+          </div>
         </div>
 
-        <!-- Correctness filters -->
         <div class="row g-3 align-items-center mb-3">
+          <!-- Offset correctness filters -->
           <div class="col-auto">
             <div class="form-check form-check-inline">
               <input class="form-check-input" type="checkbox" id="filter-correct" checked>
@@ -157,7 +165,6 @@
             </button>
           </div>
         </div>
-
       </div>
     </div>
 
@@ -187,6 +194,5 @@
 
 <!-- Custom JS -->
 <script src="scripts.js"></script>
-
 </body>
 </html>
