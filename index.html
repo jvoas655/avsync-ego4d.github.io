@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AV Experiment Results</title>
+  <!-- You can add bootstrap or any other CSS framework if you like -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h1>AV Experiment Results</h1>
+
+  <!-- Example buttons or checkboxes for filtering samples. 
+       You can show/hide certain categories (correct, almost correct, very incorrect, etc.). -->
+  <div>
+    <label><input type="checkbox" id="filter-correct" checked> Show Correct</label>
+    <label><input type="checkbox" id="filter-almost" checked> Show Almost Correct</label>
+    <label><input type="checkbox" id="filter-incorrect" checked> Show Very Incorrect</label>
+    <label><input type="checkbox" id="filter-confident" checked> Show High Confidence</label>
+    <label><input type="checkbox" id="filter-unconfident" checked> Show Low Confidence</label>
+    <label><input type="checkbox" id="filter-majority-wrong-final-correct" checked> Show "Turnaround" Cases</label>
+  </div>
+
+  <div id="sample-container">
+    <!-- JavaScript will inject sample displays here -->
+  </div>
+
+  <script src="scripts.js"></script>
+</body>
+</html>
