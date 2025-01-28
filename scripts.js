@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderSamples(data);
       attachFilterHandlers(data);
     })
-    .catch(err => console.error("Failed to load data:", err));
+    .catch(err => console.error("Failed2 to load data:", err));
 });
 
 function renderSamples(samples) {
