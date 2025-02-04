@@ -87,6 +87,7 @@
           <!-- Additional Filters -->
           <div class="row g-3 align-items-center mb-3">
             <div class="col-auto">
+              <!-- Turnaround filter -->
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="filter-turnaround">
                 <label class="form-check-label" for="filter-turnaround">
@@ -95,6 +96,7 @@
               </div>
             </div>
             <div class="col-auto">
+              <!-- Confidence category filters -->
               <div class="form-check form-check-inline">
                 <input class="form-check-input" type="checkbox" id="filter-lowConf" checked>
                 <label class="form-check-label" for="filter-lowConf">Show Low Conf.</label>
@@ -109,11 +111,30 @@
               </div>
             </div>
             <div class="col-auto">
+              <!-- Filter out samples w/o video -->
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="filter-hasVideo">
                 <label class="form-check-label" for="filter-hasVideo">
                   Show Only Samples w/ Video
                 </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Offset Correctness Filters -->
+          <div class="row g-3 align-items-center mb-3">
+            <div class="col-auto">
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="filter-correct" checked>
+                <label class="form-check-label" for="filter-correct">Show Correct</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="filter-almost" checked>
+                <label class="form-check-label" for="filter-almost">Show Almost</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="filter-incorrect" checked>
+                <label class="form-check-label" for="filter-incorrect">Show Very Incorrect</label>
               </div>
             </div>
           </div>
