@@ -50,8 +50,8 @@ function getStats(values) {
   if (!values.length) return { min: null, max: null, mean: null, std: null };
   const min = Math.min(...values);
   const max = Math.max(...values);
-  const mean = values.reduce((a,b) => a + b, 0) / values.length;
-  const variance = values.reduce((acc,val) => acc + (val - mean)**2, 0) / values.length;
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance = values.reduce((acc, val) => acc + (val - mean) ** 2, 0) / values.length;
   return { min, max, mean, std: Math.sqrt(variance) };
 }
 
@@ -61,7 +61,6 @@ function getStats(values) {
 function createAllSampleCards() {
   const container = document.getElementById("sample-container");
   container.innerHTML = "";
-
   allSamples.forEach(sample => {
     const card = createSampleCard(sample);
     sampleCards[sample.sample_idx] = card;
@@ -75,7 +74,7 @@ function createAllSampleCards() {
  */
 function createSampleCard(sample) {
   const card = document.createElement("div");
-  card.className = "card mb-4 shadow-sm border sample-card";
+  card.className = "card mb-4 shadow-sm sample-card";
 
   // Header
   const header = document.createElement("div");
@@ -137,9 +136,8 @@ function lazyLoadMedia(card) {
   // Videos
   const videos = card.querySelectorAll("video[data-video-url]");
   videos.forEach(v => (v.src = v.dataset.videoUrl));
-
-  // Images
-  const imgs = card.querySelectorAll("img[data-imgUrl]");
+  // Images – note the selector now uses "data-img-url" (all lowercase with dash)
+  const imgs = card.querySelectorAll("img[data-img-url]");
   imgs.forEach(img => (img.src = img.dataset.imgUrl));
 }
 
@@ -172,7 +170,7 @@ function createFinalMetricsSection(sample) {
   // Stats
   const statsDiv = document.createElement("div");
   statsDiv.className = "mt-2 border-top pt-2";
-  statsDiv.dataset.finalStats = ""; // We'll fill later in color update
+  statsDiv.dataset.finalStats = "";
   container.appendChild(statsDiv);
 
   return container;
@@ -180,7 +178,7 @@ function createFinalMetricsSection(sample) {
 
 /**
  * Full media section. We do NOT set src immediately; we store them in data-video-url
- * or data-imgUrl for lazyLoadMedia() to handle on expand.
+ * or data-img-url for lazyLoadMedia() to handle on expand.
  */
 function createFullMediaSection(sample) {
   const container = document.createElement("div");
@@ -217,7 +215,7 @@ function createFullMediaSection(sample) {
   const img = document.createElement("img");
   img.width = 600;
   img.alt = "Full Melspectrogram";
-  img.dataset.imgUrl = fullMelspecPath; // lazy
+  img.dataset.imgUrl = fullMelspecPath; // lazy – note the attribute becomes data-img-url in HTML
   img.onerror = () => {
     img.replaceWith(document.createTextNode("No full spectrogram found."));
   };
@@ -249,6 +247,7 @@ function createWindowTableSection(sample) {
 
   const table = document.createElement("table");
   table.className = "table table-striped table-bordered table-hover align-middle";
+  table.style.backgroundColor = "#fff"; // added for clear boundaries
   const thead = document.createElement("thead");
   thead.innerHTML = `
     <tr class="table-secondary">
@@ -269,7 +268,6 @@ function createWindowTableSection(sample) {
   const tbody = document.createElement("tbody");
   windows.forEach(w => {
     const row = document.createElement("tr");
-
     row.innerHTML = `
       <td>${w.iteration ?? ""}</td>
       <td>${w.predicted_class ?? ""}</td>
@@ -332,7 +330,6 @@ function createWindowTableSection(sample) {
 
     tbody.appendChild(row);
   });
-
   table.appendChild(tbody);
   container.appendChild(table);
   return container;
@@ -340,11 +337,8 @@ function createWindowTableSection(sample) {
 
 /**
  * Creates a small "bar chart" of the softmax array.
- * - highest bar: red if it's not the ground truth, green if it matches ground truth
- * - ground truth bar: yellow if not top, else green if it is top
  */
 function createSoftmaxBarChart(probs, groundTruth, predictedClass) {
-  // Find index of max prob
   let maxVal = -Infinity;
   let maxIdx = 0;
   for (let i = 0; i < probs.length; i++) {
@@ -353,58 +347,30 @@ function createSoftmaxBarChart(probs, groundTruth, predictedClass) {
       maxIdx = i;
     }
   }
-
-  // We'll make a row of bars
-  // each bar is ~ 30px high * prob ? or do a width-based approach?
-  // Let's do a horizontal bar with width scaled by prob
   const container = document.createElement("div");
   container.className = "d-flex flex-row align-items-end flex-wrap";
   container.style.maxWidth = "250px";
   container.style.gap = "2px";
-
-  const highestIsCorrect = (maxIdx === groundTruth);
-
   for (let i = 0; i < probs.length; i++) {
     const bar = document.createElement("div");
     const p = probs[i];
-    const scaledWidth = Math.round(p * 100); // 0-100%
-
-    // Decide color:
-    // - if i == maxIdx && i == groundTruth => green
-    // - else if i == maxIdx => red
-    // - else if i == groundTruth => yellow
-    // - else gray
+    const scaledWidth = Math.round(p * 100);
     let bgColor = "#ccc";
     if (i === maxIdx && i === groundTruth) {
       bgColor = "green";
     } else if (i === maxIdx) {
       bgColor = "red";
     } else if (i === groundTruth) {
-      bgColor = "gold"; // or "yellow"
+      bgColor = "gold";
     }
-
     bar.style.backgroundColor = bgColor;
     bar.style.height = "12px";
-    bar.style.width = scaledWidth + "%"; // scale by prob
-    bar.style.flex = "0 0 auto"; // keep bars in row
-    bar.title = `Class ${i}: ${(p*100).toFixed(1)}%`;
-
+    bar.style.width = scaledWidth + "%";
+    bar.style.flex = "0 0 auto";
+    bar.title = `Class ${i}: ${(p * 100).toFixed(1)}%`;
     container.appendChild(bar);
   }
-
   return container;
-}
-
-// -----------------------------------------------------
-// Lazy load expansions
-// -----------------------------------------------------
-function lazyLoadMedia(card) {
-  // videos
-  const vids = card.querySelectorAll("video[data-video-url]");
-  vids.forEach(v => (v.src = v.dataset.videoUrl));
-  // images
-  const imgs = card.querySelectorAll("img[data-imgUrl]");
-  imgs.forEach(img => (img.src = img.dataset.imgUrl));
 }
 
 // -----------------------------------------------------
@@ -429,10 +395,11 @@ function setupUI() {
     updateAllCardColors();
   });
 
-  // Filters
+  // Watch various filter controls – including the new iteration filter inputs
   [
     "filter-turnaround", "filter-lowConf", "filter-midConf", "filter-highConf",
-    "filter-hasVideo", "filter-correct", "filter-almost", "filter-incorrect"
+    "filter-hasVideo", "filter-correct", "filter-almost", "filter-incorrect",
+    "filter-use-iteration", "filter-iteration", "filter-sample-index"
   ].forEach(id => {
     document.getElementById(id).addEventListener("change", () => {
       applyFilters();
@@ -461,15 +428,15 @@ function resetFilters() {
   highConfidenceThreshold = 0.75;
   lowConfidenceThreshold = 0.25;
 
-  [
-    "filter-turnaround", "filter-hasVideo"
-  ].forEach(id => (document.getElementById(id).checked = false));
-
-  [
-    "filter-lowConf", "filter-midConf", "filter-highConf",
-    "filter-correct", "filter-almost", "filter-incorrect"
-  ].forEach(id => (document.getElementById(id).checked = true));
-
+  ["filter-turnaround", "filter-hasVideo", "filter-use-iteration"].forEach(id => {
+    document.getElementById(id).checked = false;
+  });
+  ["filter-lowConf", "filter-midConf", "filter-highConf",
+   "filter-correct", "filter-almost", "filter-incorrect"
+  ].forEach(id => {
+    document.getElementById(id).checked = true;
+  });
+  document.getElementById("filter-iteration").value = "";
   document.getElementById("filter-sample-index").value = "";
 
   updateAllCardColors();
@@ -515,41 +482,53 @@ function doesSamplePassFilter(
   showCorrect, showAlmost, showVeryWrong,
   sampleIndexFilter
 ) {
-  const final = sample.final_metrics || {};
-  const offset = final.offset_from_correct;
-  const conf = final.confidence ?? 0;
+  let offset, conf;
+  const useIteration = document.getElementById("filter-use-iteration").checked;
+  if (useIteration) {
+    const iterInput = document.getElementById("filter-iteration").value.trim();
+    const iterNum = parseInt(iterInput, 10);
+    if (!isNaN(iterNum)) {
+      const windowMetric = (sample.window_metrics || []).find(w => w.iteration === iterNum);
+      if (windowMetric) {
+        offset = windowMetric.offset_from_correct;
+        conf = windowMetric.confidence;
+      } else {
+        return false;
+      }
+    } else {
+      return false;
+    }
+  } else {
+    const final = sample.final_metrics || {};
+    offset = final.offset_from_correct;
+    conf = final.confidence ?? 0;
+  }
 
-  // Turnaround check
   if (onlyTurnaround) {
     const w = sample.window_metrics || [];
     const nW = w.length;
     const nCorrect = w.filter(x => x.correct).length;
-    const majorityWrong = (nCorrect < nW/2);
+    const majorityWrong = (nCorrect < nW / 2);
     const finalCorrect = (offset === 0);
     const isTurnaround = (majorityWrong && finalCorrect);
     if (!isTurnaround) return false;
   }
 
-  // Confidence category
   const confCat = getConfidenceCategory(conf);
   if (confCat === "low" && !showLow) return false;
   if (confCat === "mid" && !showMid) return false;
   if (confCat === "high" && !showHigh) return false;
 
-  // Offset category
   const offCat = getOffsetCategory(offset);
   if (offCat === "correct" && !showCorrect) return false;
   if (offCat === "almost" && !showAlmost) return false;
   if (offCat === "veryWrong" && !showVeryWrong) return false;
 
-  // "Only samples w/ video" filter
   if (onlyHasVideo) {
-    // Check if any window_metrics have non-empty video_path
     const hasAnyVideo = (sample.window_metrics || []).some(w => w.video_path);
     if (!hasAnyVideo) return false;
   }
 
-  // Sample index filter
   if (sampleIndexFilter && sampleIndexFilter.length > 0) {
     if (!sampleIndexFilter.includes(sample.sample_idx)) return false;
   }
@@ -571,6 +550,10 @@ function getOffsetCategory(offset) {
   if (offset !== undefined && offset >= offsetThresholdVeryWrong) return "veryWrong";
   return "other";
 }
+function fmtStat(val, decimals = 2) {
+  if (val === null || isNaN(val)) return "N/A";
+  return val.toFixed(decimals);
+}
 
 // -----------------------------------------------------
 // Re-color offset/conf in final & window table badges
@@ -583,10 +566,25 @@ function updateAllCardColors() {
 }
 
 function updateCardColors(sample, cardEl) {
-  // Final metrics
+  // Use iteration metric if toggled; otherwise, use final metrics.
   const final = sample.final_metrics || {};
-  const offset = final.offset_from_correct;
-  const conf = final.confidence;
+  let offset, conf;
+  const useIteration = document.getElementById("filter-use-iteration").checked;
+  if (useIteration) {
+    const iterInput = document.getElementById("filter-iteration").value.trim();
+    const iterNum = parseInt(iterInput, 10);
+    const windowMetric = (sample.window_metrics || []).find(w => w.iteration === iterNum);
+    if (windowMetric) {
+      offset = windowMetric.offset_from_correct;
+      conf = windowMetric.confidence;
+    } else {
+      offset = final.offset_from_correct;
+      conf = final.confidence;
+    }
+  } else {
+    offset = final.offset_from_correct;
+    conf = final.confidence;
+  }
 
   // Fill final columns
   const leftDiv = cardEl.querySelector("[data-final-left]");
@@ -597,21 +595,16 @@ function updateCardColors(sample, cardEl) {
       <div><strong>Ground Truth:</strong> ${final.ground_truth ?? "N/A"}</div>
       <div><strong>Predicted:</strong> ${final.predicted_class ?? "N/A"}</div>
     `;
-
-    // Correct? => color-coded
     const isCorrect = (offset === 0);
     const correctBadge = `<span class="badge ${isCorrect ? "bg-success" : "bg-danger"}">
       ${isCorrect ? "Yes" : "No"}
     </span>`;
-
     const offBadge = `<span class="badge ${getOffsetColorClass(offset)}">
       ${offset ?? "N/A"}
     </span>`;
-
     const confBadge = `<span class="badge ${getConfidenceColorClass(conf)}">
       ${conf !== undefined && conf !== null ? conf.toFixed(3) : "N/A"}
     </span>`;
-
     rightDiv.innerHTML = `
       <div><strong>Correct?</strong> ${correctBadge}</div>
       <div><strong>Offset:</strong> ${offBadge}</div>
@@ -627,10 +620,10 @@ function updateCardColors(sample, cardEl) {
         mean=${fmtStat(offStats.mean)} /
         std=${fmtStat(offStats.std)}<br/>
       <strong>Window Stats (Confidence):</strong>
-        min=${fmtStat(confStats.min,3)} /
-        max=${fmtStat(confStats.max,3)} /
-        mean=${fmtStat(confStats.mean,3)} /
-        std=${fmtStat(confStats.std,3)}
+        min=${fmtStat(confStats.min, 3)} /
+        max=${fmtStat(confStats.max, 3)} /
+        mean=${fmtStat(confStats.mean, 3)} /
+        std=${fmtStat(confStats.std, 3)}
     `;
   }
 
@@ -677,10 +670,6 @@ function getConfidenceColorClass(conf) {
   if (conf <= lowConfidenceThreshold) return "bg-danger";
   return "bg-warning text-dark";
 }
-function fmtStat(val, decimals=2) {
-  if (val === null || isNaN(val)) return "N/A";
-  return val.toFixed(decimals);
-}
 
 // -----------------------------------------------------
 // Collapse/Expand all
@@ -713,16 +702,26 @@ function renderGlobalStats(filteredSamples) {
     el.innerHTML = "No samples available with current filters.";
     return;
   }
-
+  const useIteration = document.getElementById("filter-use-iteration").checked;
   let countCorrect = 0;
   let sumConf = 0;
   let sumOffset = 0;
   let validOffs = 0;
-
   filteredSamples.forEach(s => {
-    const fin = s.final_metrics || {};
-    const off = fin.offset_from_correct;
-    const c = fin.confidence;
+    let off, c;
+    if (useIteration) {
+      const iterInput = document.getElementById("filter-iteration").value.trim();
+      const iterNum = parseInt(iterInput, 10);
+      const win = (s.window_metrics || []).find(w => w.iteration === iterNum);
+      if (win) {
+        off = win.offset_from_correct;
+        c = win.confidence;
+      }
+    } else {
+      const fin = s.final_metrics || {};
+      off = fin.offset_from_correct;
+      c = fin.confidence;
+    }
     if (off === 0) countCorrect++;
     if (typeof off === "number") {
       sumOffset += off;
@@ -732,17 +731,15 @@ function renderGlobalStats(filteredSamples) {
       sumConf += c;
     }
   });
-
   const n = filteredSamples.length;
   const accuracy = (countCorrect / n) * 100;
   const avgConf = sumConf / n;
   const avgOff = validOffs > 0 ? sumOffset / validOffs : NaN;
-
   el.innerHTML = `
     <strong>Total Samples:</strong> ${n}<br/>
-    <strong>Accuracy (final predictions):</strong> ${accuracy.toFixed(1)}%<br/>
-    <strong>Average Final Confidence:</strong> ${isNaN(avgConf) ? "N/A" : avgConf.toFixed(3)}<br/>
-    <strong>Average Offset:</strong> ${isNaN(avgOff) ? "N/A" : avgOff.toFixed(2)}
+    <strong>Accuracy (${useIteration ? "Iteration" : "Final"} predictions):</strong> ${accuracy.toFixed(1)}%<br/>
+    <strong>Average ${useIteration ? "Iteration" : "Final"} Confidence:</strong> ${isNaN(avgConf) ? "N/A" : avgConf.toFixed(3)}<br/>
+    <strong>Average ${useIteration ? "Iteration" : "Final"} Offset:</strong> ${isNaN(avgOff) ? "N/A" : avgOff.toFixed(2)}
   `;
 }
 
