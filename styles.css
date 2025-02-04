@@ -11,7 +11,7 @@ body {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
   margin-left: auto;
   margin-right: auto;
-  max-width: 800px; /* Limit card width to help center them */
+  max-width: 1500px; /* Limit card width to help center them */
 }
 
 .sample-card .card-header {
