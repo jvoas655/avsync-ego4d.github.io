@@ -4,6 +4,44 @@ body {
 
 .sample-card {
   border-radius: 6px;
+  border: 1px solid #dee2e6; /* Light gray border */
+  margin-bottom: 15px; /* Spacing between cards */
+  padding: 10px; /* Padding inside the card */
+  background-color: #DFDFDF; /* Contrast background */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 800px; /* Limit card width to help center them */
+}
+
+.sample-card .card-header {
+  border-bottom: 1px solid #dee2e6;
+}
+
+.sample-card .card-body > div {
+  border-bottom: 1px solid #dee2e6; /* Border between sections inside the card */
+  padding-bottom: 10px; /* Spacing for readability */
+  margin-bottom: 10px; /* Spacing for readability */
+}
+
+.sample-card .card-body > div:last-child {
+  border-bottom: none; /* Remove border for the last section */
+}
+
+/* Add clear boundaries in tables within cards */
+.sample-card table {
+  background-color: #fff;
+  border: 1px solid #dee2e6;
+}
+.sample-card table th,
+.sample-card table td {
+  border: 1px solid #dee2e6 !important;
+}
+
+#sample-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .collapse-icon {
@@ -23,29 +61,5 @@ body {
 }
 
 table td[data-bar] {
-  min-width: 160px; /* a bit more space for the bar chart cell */
-}
-
-
-.sample-card {
-  border: 1px solid #dee2e6; /* Light gray border */
-  border-radius: 6px;
-  margin-bottom: 15px; /* Add spacing between cards */
-  padding: 10px; /* Optional padding inside the card */
-  background-color: #DFDFDF; /* Ensure white background for contrast */
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
-}
-
-.sample-card .card-header {
-  border-bottom: 1px solid #dee2e6; /* Light gray border below the header */
-}
-
-.sample-card .card-body > div {
-  border-bottom: 1px solid #dee2e6; /* Border between sections inside the card */
-  padding-bottom: 10px; /* Spacing for readability */
-  margin-bottom: 10px; /* Spacing for readability */
-}
-
-.sample-card .card-body > div:last-child {
-  border-bottom: none; /* Remove the border for the last section */
+  min-width: 160px;
 }
