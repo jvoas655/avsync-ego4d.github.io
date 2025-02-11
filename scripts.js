@@ -379,7 +379,7 @@ function createSoftmaxBarChart(probs, groundTruth, predictedClass) {
 function setupUI() {
   // Threshold changes => recolor badges
   document.getElementById("offset-threshold-almost").addEventListener("change", e => {
-    offsetThresholdAlmost = parseFloat(e.target.value) || 1;
+    offsetThresholdAlmost = parseFloat(e.target.value) || 2;
     updateAllCardColors();
   });
   document.getElementById("offset-threshold-verywrong").addEventListener("change", e => {
@@ -387,11 +387,11 @@ function setupUI() {
     updateAllCardColors();
   });
   document.getElementById("conf-threshold-high").addEventListener("change", e => {
-    highConfidenceThreshold = parseFloat(e.target.value) || 0.75;
+    highConfidenceThreshold = parseFloat(e.target.value) || 0.7;
     updateAllCardColors();
   });
   document.getElementById("conf-threshold-low").addEventListener("change", e => {
-    lowConfidenceThreshold = parseFloat(e.target.value) || 0.25;
+    lowConfidenceThreshold = parseFloat(e.target.value) || 0.2;
     updateAllCardColors();
   });
 
@@ -418,15 +418,15 @@ function setupUI() {
 }
 
 function resetFilters() {
-  document.getElementById("offset-threshold-almost").value = 1;
+  document.getElementById("offset-threshold-almost").value = 2;
   document.getElementById("offset-threshold-verywrong").value = 3;
-  document.getElementById("conf-threshold-high").value = 0.75;
-  document.getElementById("conf-threshold-low").value = 0.25;
+  document.getElementById("conf-threshold-high").value = 0.7;
+  document.getElementById("conf-threshold-low").value = 0.2;
 
-  offsetThresholdAlmost = 1;
+  offsetThresholdAlmost = 2;
   offsetThresholdVeryWrong = 3;
-  highConfidenceThreshold = 0.75;
-  lowConfidenceThreshold = 0.25;
+  highConfidenceThreshold = 0.7;
+  lowConfidenceThreshold = 0.2;
 
   ["filter-turnaround", "filter-hasVideo", "filter-use-iteration"].forEach(id => {
     document.getElementById(id).checked = false;
