@@ -1,10 +1,10 @@
 // -----------------------------------------------------
 // Global threshold variables
 // -----------------------------------------------------
-let offsetThresholdAlmost = 1;
+let offsetThresholdAlmost = 2;
 let offsetThresholdVeryWrong = 3;
-let highConfidenceThreshold = 0.75;
-let lowConfidenceThreshold = 0.25;
+let highConfidenceThreshold = 0.7;
+let lowConfidenceThreshold = 0.2;
 
 // We'll store sample data, plus a map from sample_idx -> card element
 let allSamples = [];
