@@ -37,11 +37,23 @@ body {
   border: 1px solid #dee2e6 !important;
 }
 
-#sample-container-21,
-#sample-container-oos {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.viewer-section {
+  border: 1px solid #ccc;
+  margin-bottom: 20px;
+  padding: 10px;
+  background-color: #ffffff;
+}
+
+.viewer-header {
+  cursor: pointer;
+}
+
+.viewer-header h2 {
+  margin: 0;
+}
+
+.viewer-content {
+  padding-top: 10px;
 }
 
 .collapse-icon {
