@@ -66,9 +66,14 @@ function loadDatasetViewer(viewer) {
     })
     .then(data => {
       viewer.samples = data;
-      // For binary viewer, mark each sample as binary.
+      // For binary viewer, if sample_idx is missing (or 0), assign sequential indices.
       if (viewer.isBinary) {
-        viewer.samples.forEach(s => s.isBinary = true);
+        viewer.samples.forEach((sample, index) => {
+          if (sample.sample_idx === undefined || sample.sample_idx === null || sample.sample_idx === 0) {
+            sample.sample_idx = index + 1;
+          }
+          sample.isBinary = true;
+        });
       }
       viewer.samples.forEach(computeSampleStats);
       createAllSampleCards(viewer);
@@ -185,7 +190,7 @@ function lazyLoadMedia(card) {
 }
 
 /**
- * Final metrics section including softmax bar chart and cross entropy.
+ * Final metrics section including softmax bar chart, cross entropy, and rank.
  */
 function createFinalMetricsSection(sample) {
   const final = sample.final_metrics || {};
@@ -199,8 +204,10 @@ function createFinalMetricsSection(sample) {
     </div>
     <div class="mt-2" data-bar-chart></div>
   `;
+  // Add a cross entropy / rank block with a data attribute for later updates.
   const ceEl = document.createElement("div");
   ceEl.className = "mt-2";
+  ceEl.dataset.ceSection = "";
   ceEl.innerHTML = `
     <strong>Cross Entropy:</strong> ${final.cross_entropy ?? "N/A"}<br/>
     <strong>Rank of Correct Class:</strong> ${final.rank_of_correct_class ?? "N/A"}
@@ -301,11 +308,7 @@ function createWindowTableSection(sample) {
     row.querySelector("[data-offset]").dataset.offsetValue = w.offset_from_correct ?? "null";
     const barTd = row.querySelector("[data-bar]");
     if (w.softmax_probs) {
-      const chartDiv = createSoftmaxBarChart(
-        w.softmax_probs,
-        w.ground_truth,
-        w.predicted_class
-      );
+      const chartDiv = createSoftmaxBarChart(w.softmax_probs, w.ground_truth, w.predicted_class);
       barTd.appendChild(chartDiv);
     } else {
       barTd.textContent = "N/A";
@@ -521,6 +524,7 @@ function doesSamplePassFilter(
       if (!isNaN(iterNum)) {
         const windowMetric = (sample.window_metrics || []).find(w => w.iteration === iterNum);
         if (windowMetric) {
+          // For binary, determine correct vs. incorrect.
           offCat = (windowMetric.ground_truth == windowMetric.predicted_class) ? "correct" : "incorrect";
           conf = windowMetric.confidence;
         } else {
@@ -623,25 +627,26 @@ function updateCardColorsForViewer(viewer) {
 }
 
 function updateCardColors(sample, cardEl) {
-  // For binary viewer, ignore offset thresholds – simply compare predicted_class and ground_truth.
+  // For binary viewer, override the offset computation.
   if (sample.isBinary) {
-    const fin = sample.final_metrics || {};
-    const correct = (fin.ground_truth == fin.predicted_class);
-    const off = correct ? 0 : 1;
-    const conf = fin.confidence;
+    const final = sample.final_metrics || {};
+    const binaryOffset = (final.ground_truth == final.predicted_class) ? 0 : 1;
+    const conf = final.confidence;
     const leftDiv = cardEl.querySelector("[data-final-left]");
     const rightDiv = cardEl.querySelector("[data-final-right]");
     const statsDiv = cardEl.querySelector("[data-final-stats]");
+    const ceEl = cardEl.querySelector("[data-ce-section]");
     if (leftDiv && rightDiv && statsDiv) {
       leftDiv.innerHTML = `
-        <div><strong>Ground Truth:</strong> ${fin.ground_truth}</div>
-        <div><strong>Predicted:</strong> ${fin.predicted_class}</div>
+        <div><strong>Ground Truth:</strong> ${final.ground_truth}</div>
+        <div><strong>Predicted:</strong> ${final.predicted_class}</div>
       `;
-      const correctBadge = `<span class="badge ${correct ? "bg-success" : "bg-danger"}">
-        ${correct ? "Yes" : "No"}
+      const isCorrect = (binaryOffset === 0);
+      const correctBadge = `<span class="badge ${isCorrect ? "bg-success" : "bg-danger"}">
+        ${isCorrect ? "Yes" : "No"}
       </span>`;
-      const offBadge = `<span class="badge ${correct ? "bg-success" : "bg-danger"}">
-        ${off}
+      const offBadge = `<span class="badge ${isCorrect ? "bg-success" : "bg-danger"}">
+        ${binaryOffset}
       </span>`;
       const confBadge = `<span class="badge ${getConfidenceColorClass(conf)}">
         ${conf !== undefined && conf !== null ? conf.toFixed(3) : "N/A"}
@@ -651,9 +656,21 @@ function updateCardColors(sample, cardEl) {
         <div><strong>Offset:</strong> ${offBadge}</div>
         <div><strong>Confidence:</strong> ${confBadge}</div>
       `;
-      statsDiv.innerHTML = "";
+      if (ceEl) {
+        ceEl.innerHTML = `
+          <strong>Cross Entropy:</strong> ${final.cross_entropy ?? "N/A"}<br/>
+          <strong>Rank of Correct Class:</strong> ${final.rank_of_correct_class ?? "N/A"}
+        `;
+      }
+      const { offset: offStats, confidence: confStats } = sample.stats;
+      statsDiv.innerHTML = `
+        <strong>Window Stats (Offset):</strong>
+          min=${fmtStat(offStats.min)} / max=${fmtStat(offStats.max)} / mean=${fmtStat(offStats.mean)} / std=${fmtStat(offStats.std)}<br/>
+        <strong>Window Stats (Confidence):</strong>
+          min=${fmtStat(confStats.min, 3)} / max=${fmtStat(confStats.max, 3)} / mean=${fmtStat(confStats.mean, 3)} / std=${fmtStat(confStats.std, 3)}
+      `;
     }
-    // Also update each window row similarly.
+    // Also update each window row for binary samples.
     const rows = cardEl.querySelectorAll("tr");
     rows.forEach(r => {
       const offTd = r.querySelector("[data-offset]");
@@ -661,6 +678,7 @@ function updateCardColors(sample, cardEl) {
       if (offTd) {
         const val = offTd.dataset.offsetValue;
         if (val !== "null") {
+          // For binary, show any nonzero as 1.
           const num = parseFloat(val);
           const rowCorrect = (num === 0);
           offTd.innerHTML = `<span class="badge ${rowCorrect ? "bg-success" : "bg-danger"}">
@@ -683,89 +701,90 @@ function updateCardColors(sample, cardEl) {
       }
     });
     return;
-  } else {
-    // For 21‑class viewer (original logic)
-    const final = sample.final_metrics || {};
-    let offset, conf;
-    const useIteration = document.getElementById("filter-use-iteration").checked;
-    if (useIteration) {
-      const iterInput = document.getElementById("filter-iteration").value.trim();
-      const iterNum = parseInt(iterInput, 10);
-      const windowMetric = (sample.window_metrics || []).find(w => w.iteration === iterNum);
-      if (windowMetric) {
-        offset = windowMetric.offset_from_correct;
-        conf = windowMetric.confidence;
-      } else {
-        offset = final.offset_from_correct;
-        conf = final.confidence;
-      }
+  }
+
+  // For 21‑class viewer, use the original logic.
+  const final = sample.final_metrics || {};
+  let offset, conf;
+  const useIteration = document.getElementById("filter-use-iteration").checked;
+  if (useIteration) {
+    const iterInput = document.getElementById("filter-iteration").value.trim();
+    const iterNum = parseInt(iterInput, 10);
+    const windowMetric = (sample.window_metrics || []).find(w => w.iteration === iterNum);
+    if (windowMetric) {
+      offset = windowMetric.offset_from_correct;
+      conf = windowMetric.confidence;
     } else {
       offset = final.offset_from_correct;
       conf = final.confidence;
     }
-    const leftDiv = cardEl.querySelector("[data-final-left]");
-    const rightDiv = cardEl.querySelector("[data-final-right]");
-    const statsDiv = cardEl.querySelector("[data-final-stats]");
-    if (leftDiv && rightDiv && statsDiv) {
-      leftDiv.innerHTML = `
-        <div><strong>Ground Truth:</strong> ${final.ground_truth ?? "N/A"}</div>
-        <div><strong>Predicted:</strong> ${final.predicted_class ?? "N/A"}</div>
-      `;
-      const isCorrect = (offset === 0);
-      const correctBadge = `<span class="badge ${isCorrect ? "bg-success" : "bg-danger"}">
-        ${isCorrect ? "Yes" : "No"}
-      </span>`;
-      const offBadge = `<span class="badge ${getOffsetColorClass(offset)}">
-        ${offset ?? "N/A"}
-      </span>`;
-      const confBadge = `<span class="badge ${getConfidenceColorClass(conf)}">
-        ${conf !== undefined && conf !== null ? conf.toFixed(3) : "N/A"}
-      </span>`;
-      rightDiv.innerHTML = `
-        <div><strong>Correct?</strong> ${correctBadge}</div>
-        <div><strong>Offset:</strong> ${offBadge}</div>
-        <div><strong>Confidence:</strong> ${confBadge}</div>
-      `;
-      const { offset: offStats, confidence: confStats } = sample.stats;
-      statsDiv.innerHTML = `
-        <strong>Window Stats (Offset):</strong>
-          min=${fmtStat(offStats.min)} /
-          max=${fmtStat(offStats.max)} /
-          mean=${fmtStat(offStats.mean)} /
-          std=${fmtStat(offStats.std)}<br/>
-        <strong>Window Stats (Confidence):</strong>
-          min=${fmtStat(confStats.min, 3)} /
-          max=${fmtStat(confStats.max, 3)} /
-          mean=${fmtStat(confStats.mean, 3)} /
-          std=${fmtStat(confStats.std, 3)}
+  } else {
+    offset = final.offset_from_correct;
+    conf = final.confidence;
+  }
+  const leftDiv = cardEl.querySelector("[data-final-left]");
+  const rightDiv = cardEl.querySelector("[data-final-right]");
+  const statsDiv = cardEl.querySelector("[data-final-stats]");
+  const ceEl = cardEl.querySelector("[data-ce-section]");
+  if (leftDiv && rightDiv && statsDiv) {
+    leftDiv.innerHTML = `
+      <div><strong>Ground Truth:</strong> ${final.ground_truth ?? "N/A"}</div>
+      <div><strong>Predicted:</strong> ${final.predicted_class ?? "N/A"}</div>
+    `;
+    const isCorrect = (offset === 0);
+    const correctBadge = `<span class="badge ${isCorrect ? "bg-success" : "bg-danger"}">
+      ${isCorrect ? "Yes" : "No"}
+    </span>`;
+    const offBadge = `<span class="badge ${getOffsetColorClass(offset)}">
+      ${offset ?? "N/A"}
+    </span>`;
+    const confBadge = `<span class="badge ${getConfidenceColorClass(conf)}">
+      ${conf !== undefined && conf !== null ? conf.toFixed(3) : "N/A"}
+    </span>`;
+    rightDiv.innerHTML = `
+      <div><strong>Correct?</strong> ${correctBadge}</div>
+      <div><strong>Offset:</strong> ${offBadge}</div>
+      <div><strong>Confidence:</strong> ${confBadge}</div>
+    `;
+    if (ceEl) {
+      ceEl.innerHTML = `
+        <strong>Cross Entropy:</strong> ${final.cross_entropy ?? "N/A"}<br/>
+        <strong>Rank of Correct Class:</strong> ${final.rank_of_correct_class ?? "N/A"}
       `;
     }
-    const rows = cardEl.querySelectorAll("tr");
-    rows.forEach(r => {
-      const offTd = r.querySelector("[data-offset]");
-      const confTd = r.querySelector("[data-conf]");
-      if (offTd) {
-        const val = offTd.dataset.offsetValue;
-        if (val !== "null") {
-          const num = parseFloat(val);
-          offTd.innerHTML = `<span class="badge ${getOffsetColorClass(num)}">${num}</span>`;
-        } else {
-          offTd.innerHTML = `<span class="badge bg-secondary">N/A</span>`;
-        }
-      }
-      if (confTd) {
-        const val = confTd.dataset.confValue;
-        if (val !== "null") {
-          const num = parseFloat(val);
-          confTd.innerHTML = `<span class="badge ${getConfidenceColorClass(num)}">
-            ${num.toFixed(3)}
-          </span>`;
-        } else {
-          confTd.innerHTML = `<span class="badge bg-secondary">N/A</span>`;
-        }
-      }
-    });
+    const { offset: offStats, confidence: confStats } = sample.stats;
+    statsDiv.innerHTML = `
+      <strong>Window Stats (Offset):</strong>
+        min=${fmtStat(offStats.min)} / max=${fmtStat(offStats.max)} / mean=${fmtStat(offStats.mean)} / std=${fmtStat(offStats.std)}<br/>
+      <strong>Window Stats (Confidence):</strong>
+        min=${fmtStat(confStats.min, 3)} / max=${fmtStat(confStats.max, 3)} / mean=${fmtStat(confStats.mean, 3)} / std=${fmtStat(confStats.std, 3)}
+    `;
   }
+  const rows = cardEl.querySelectorAll("tr");
+  rows.forEach(r => {
+    const offTd = r.querySelector("[data-offset]");
+    const confTd = r.querySelector("[data-conf]");
+    if (offTd) {
+      const val = offTd.dataset.offsetValue;
+      if (val !== "null") {
+        const num = parseFloat(val);
+        offTd.innerHTML = `<span class="badge ${getOffsetColorClass(num)}">${num}</span>`;
+      } else {
+        offTd.innerHTML = `<span class="badge bg-secondary">N/A</span>`;
+      }
+    }
+    if (confTd) {
+      const val = confTd.dataset.confValue;
+      if (val !== "null") {
+        const num = parseFloat(val);
+        confTd.innerHTML = `<span class="badge ${getConfidenceColorClass(num)}">
+          ${num.toFixed(3)}
+        </span>`;
+      } else {
+        confTd.innerHTML = `<span class="badge bg-secondary">N/A</span>`;
+      }
+    }
+  });
 }
 
 function getOffsetColorClass(offset) {
