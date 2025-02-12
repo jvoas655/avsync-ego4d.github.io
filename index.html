@@ -24,7 +24,7 @@
       <div class="card mb-3 shadow-sm">
         <div class="card-header fw-bold">Global Controls</div>
         <div class="card-body">
-          <!-- Thresholds (offset & confidence) -->
+          <!-- Thresholds -->
           <div class="row g-3 mb-2">
             <div class="col-sm-6 col-md-3">
               <label for="offset-threshold-almost" class="form-label">
@@ -55,7 +55,7 @@
           <hr class="my-3">
 
           <!-- Additional Filters -->
-          <div class="row g-3 align-items-center mb-3">
+          <div class="row g-3 align-items-center mb-2">
             <div class="col-auto">
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="filter-turnaround">
@@ -88,12 +88,29 @@
             </div>
           </div>
 
-          <!-- Offset Correctness Filters -->
-          <div class="row g-3 align-items-center mb-3">
+          <!-- New Media Toggles -->
+          <div class="row g-3 align-items-center mb-2">
             <div class="col-auto">
-              <!-- For binary viewer these checkboxes are interpreted as:
-                   "filter-correct" for correct samples and the combination of 
-                   "filter-almost" and "filter-incorrect" for incorrect ones. -->
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="toggle-show-videos">
+                <label class="form-check-label" for="toggle-show-videos">
+                  Enable Videos
+                </label>
+              </div>
+            </div>
+            <div class="col-auto">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="toggle-show-spectrograms">
+                <label class="form-check-label" for="toggle-show-spectrograms">
+                  Enable Spectrograms
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Offset Correctness Filters -->
+          <div class="row g-3 align-items-center mb-2">
+            <div class="col-auto">
               <div class="form-check form-check-inline">
                 <input class="form-check-input" type="checkbox" id="filter-correct" checked>
                 <label class="form-check-label" for="filter-correct">Show Correct</label>
@@ -110,7 +127,7 @@
           </div>
 
           <!-- Iteration Metrics Filter -->
-          <div class="row g-3 align-items-end mb-3">
+          <div class="row g-3 align-items-end mb-2">
             <div class="col-auto">
               <div class="form-check">
                 <input type="checkbox" class="form-check-input" id="filter-use-iteration">
@@ -138,16 +155,17 @@
               <button class="btn btn-warning" id="btn-reset-filters">Reset</button>
             </div>
           </div>
+
         </div>
       </div>
 
-      <!-- Collapse / Expand All Buttons -->
+      <!-- Global Collapse/Expand Buttons -->
       <div class="d-flex justify-content-end mb-3">
         <button class="btn btn-outline-secondary me-2" id="btn-collapse-all">Collapse All</button>
         <button class="btn btn-outline-secondary" id="btn-expand-all">Expand All</button>
       </div>
 
-      <!-- Each viewer is now collapsible. They start collapsed. -->
+      <!-- Viewer Sections (each collapsible) -->
       <div class="mb-5">
         <section id="section-21" class="viewer-section mb-4">
           <div class="viewer-header d-flex justify-content-between align-items-center">
