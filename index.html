@@ -30,55 +30,25 @@
               <label for="offset-threshold-almost" class="form-label">
                 "Almost Correct" Offset Threshold
               </label>
-              <input
-                type="number"
-                class="form-control"
-                id="offset-threshold-almost"
-                value="2"
-                step="1"
-                min="0"
-              >
+              <input type="number" class="form-control" id="offset-threshold-almost" value="2" step="1" min="0">
             </div>
             <div class="col-sm-6 col-md-3">
               <label for="offset-threshold-verywrong" class="form-label">
                 "Very Incorrect" Offset Threshold
               </label>
-              <input
-                type="number"
-                class="form-control"
-                id="offset-threshold-verywrong"
-                value="3"
-                step="1"
-                min="1"
-              >
+              <input type="number" class="form-control" id="offset-threshold-verywrong" value="3" step="1" min="1">
             </div>
             <div class="col-sm-6 col-md-3">
               <label for="conf-threshold-high" class="form-label">
                 High Confidence Threshold
               </label>
-              <input
-                type="number"
-                class="form-control"
-                id="conf-threshold-high"
-                value="0.7"
-                step="0.05"
-                min="0"
-                max="1"
-              >
+              <input type="number" class="form-control" id="conf-threshold-high" value="0.7" step="0.05" min="0" max="1">
             </div>
             <div class="col-sm-6 col-md-3">
               <label for="conf-threshold-low" class="form-label">
                 Low Confidence Threshold
               </label>
-              <input
-                type="number"
-                class="form-control"
-                id="conf-threshold-low"
-                value="0.2"
-                step="0.05"
-                min="0"
-                max="1"
-              >
+              <input type="number" class="form-control" id="conf-threshold-low" value="0.2" step="0.05" min="0" max="1">
             </div>
           </div>
 
@@ -87,7 +57,6 @@
           <!-- Additional Filters -->
           <div class="row g-3 align-items-center mb-3">
             <div class="col-auto">
-              <!-- Turnaround filter -->
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="filter-turnaround">
                 <label class="form-check-label" for="filter-turnaround">
@@ -96,7 +65,6 @@
               </div>
             </div>
             <div class="col-auto">
-              <!-- Confidence category filters -->
               <div class="form-check form-check-inline">
                 <input class="form-check-input" type="checkbox" id="filter-lowConf" checked>
                 <label class="form-check-label" for="filter-lowConf">Show Low Conf.</label>
@@ -111,7 +79,6 @@
               </div>
             </div>
             <div class="col-auto">
-              <!-- Filter out samples w/o video -->
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="filter-hasVideo">
                 <label class="form-check-label" for="filter-hasVideo">
@@ -161,12 +128,7 @@
               <label for="filter-sample-index" class="form-label">
                 Filter by Sample # (comma-separated)
               </label>
-              <input
-                type="text"
-                class="form-control"
-                id="filter-sample-index"
-                placeholder="e.g., 10, 15, 99"
-              >
+              <input type="text" class="form-control" id="filter-sample-index" placeholder="e.g., 10, 15, 99">
             </div>
             <div class="col-auto">
               <button class="btn btn-secondary" id="btn-apply-filters">
@@ -186,13 +148,23 @@
         <button class="btn btn-outline-secondary" id="btn-expand-all">Expand All</button>
       </div>
 
-      <!-- Global Stats -->
-      <div id="global-stats" class="alert alert-info" role="alert">
-        <strong>Loading stats...</strong>
-      </div>
+      <!-- Section for 21-Class Predictions -->
+      <section id="section-21" class="mb-5">
+        <h2 class="mb-3">21-Class Predictions</h2>
+        <div id="global-stats-21" class="alert alert-info" role="alert">
+          <strong>Loading stats...</strong>
+        </div>
+        <div id="sample-container-21"></div>
+      </section>
 
-      <!-- Sample Container -->
-      <div id="sample-container"></div>
+      <!-- Section for Binary Predictions (In Sync/Out of Sync) -->
+      <section id="section-oos" class="mb-5">
+        <h2 class="mb-3">Binary Predictions (In Sync/Out of Sync)</h2>
+        <div id="global-stats-oos" class="alert alert-info" role="alert">
+          <strong>Loading stats...</strong>
+        </div>
+        <div id="sample-container-oos"></div>
+      </section>
 
     </div>
   </div>
