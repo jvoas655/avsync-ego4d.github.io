@@ -6,20 +6,18 @@ let offsetThresholdVeryWrong = 3;
 let highConfidenceThreshold = 0.7;
 let lowConfidenceThreshold = 0.2;
 
+// New global toggles for media elements – default off.
+let globalShowVideos = false;
+let globalShowSpectrograms = false;
+
 // Array to hold dataset viewer objects for each dataset (21‑class and binary)
 let datasetViewers = [];
 
 /* 
-Each dataset viewer object has the following structure:
+Each dataset viewer object:
 {
-   label: string,
-   jsonPath: string,
-   section: DOM element (the entire viewer section),
-   container: DOM element (the sample cards container),
-   globalStatsEl: DOM element,
-   samples: array,
-   sampleCards: object mapping sample_idx to card element,
-   isBinary: boolean (true for binary predictions)
+   label, jsonPath, section, container, globalStatsEl,
+   samples, sampleCards, isBinary (boolean)
 }
 */
 
@@ -48,32 +46,56 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   datasetViewers.push(viewer21, viewerOOS);
-
-  // Load each dataset viewer
-  datasetViewers.forEach(viewer => {
-    loadDatasetViewer(viewer);
-  });
+  // Load each dataset viewer.
+  datasetViewers.forEach(viewer => loadDatasetViewer(viewer));
 
   setupViewerToggles();
   setupUI();
 });
 
-// Attach click handlers to each viewer's toggle button.
+// Setup viewer section toggle buttons.
 function setupViewerToggles() {
   document.querySelectorAll('.toggle-viewer').forEach(btn => {
     btn.addEventListener('click', function () {
       const viewerSection = this.closest('.viewer-section');
       const content = viewerSection.querySelector('.viewer-content');
-      if (content.style.display === "none" || content.style.display === "") {
-        content.style.display = "block";
-      } else {
-        content.style.display = "none";
-      }
+      content.style.display = (content.style.display === "none" || content.style.display === "") ? "block" : "none";
     });
   });
 }
 
-// Load a dataset viewer from its JSON file
+// Rebuild all sample cards (called when media toggles change).
+function rebuildAllCards() {
+  datasetViewers.forEach(viewer => {
+    // Rebuild using document fragment for speed.
+    viewer.sampleCards = {};
+    viewer.container.innerHTML = "";
+    const frag = document.createDocumentFragment();
+    viewer.samples.forEach(sample => {
+      const card = createSampleCard(sample, viewer.isBinary);
+      viewer.sampleCards[sample.sample_idx] = card;
+      frag.appendChild(card);
+    });
+    viewer.container.appendChild(frag);
+    updateCardColorsForViewer(viewer);
+    applyFiltersToViewer(viewer);
+    renderGlobalStatsForViewer(viewer);
+  });
+}
+
+// Attach event listeners to the new media toggle checkboxes.
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("toggle-show-videos").addEventListener("change", e => {
+    globalShowVideos = e.target.checked;
+    rebuildAllCards();
+  });
+  document.getElementById("toggle-show-spectrograms").addEventListener("change", e => {
+    globalShowSpectrograms = e.target.checked;
+    rebuildAllCards();
+  });
+});
+
+// Load a dataset viewer from its JSON file.
 function loadDatasetViewer(viewer) {
   fetch(viewer.jsonPath)
     .then(res => {
@@ -82,12 +104,10 @@ function loadDatasetViewer(viewer) {
     })
     .then(data => {
       viewer.samples = data;
-      // For binary viewer, if sample_idx is missing or zero, assign sequential indices.
+      // For binary viewer, assign sequential sample_idx if missing or zero.
       if (viewer.isBinary) {
         viewer.samples.forEach((sample, index) => {
-          if (!sample.sample_idx) {
-            sample.sample_idx = index + 1;
-          }
+          if (!sample.sample_idx) sample.sample_idx = index + 1;
           sample.isBinary = true;
         });
       }
@@ -99,7 +119,6 @@ function loadDatasetViewer(viewer) {
     })
     .catch(err => {
       console.error("Error loading", viewer.jsonPath, err);
-      // Hide the section if data cannot be loaded
       viewer.section.style.display = "none";
     });
 }
@@ -128,21 +147,22 @@ function getStats(values) {
 }
 
 // -----------------------------------------------------
-// Build all sample cards for a given viewer
+// Build all sample cards for a given viewer using a document fragment
 // -----------------------------------------------------
 function createAllSampleCards(viewer) {
   viewer.container.innerHTML = "";
+  const frag = document.createDocumentFragment();
   viewer.samples.forEach(sample => {
     const card = createSampleCard(sample, viewer.isBinary);
     viewer.sampleCards[sample.sample_idx] = card;
-    viewer.container.appendChild(card);
+    frag.appendChild(card);
   });
+  viewer.container.appendChild(frag);
 }
 
 /**
  * Create a single sample card (collapsed by default).
- * Videos and images are lazy‑loaded on expansion.
- * For non‑binary (21‑class) samples, we display sample_idx+1.
+ * For non-binary (21-class) samples, display sample_idx+1.
  */
 function createSampleCard(sample, isBinary) {
   const card = document.createElement("div");
@@ -156,7 +176,6 @@ function createSampleCard(sample, isBinary) {
   const title = document.createElement("h5");
   let displayIndex = sample.sample_idx;
   if (!isBinary) {
-    // For 21-class viewer, add 1 so that numbering starts at 1.
     displayIndex = Number(sample.sample_idx) + 1;
   }
   title.textContent = `Sample #${displayIndex}`;
@@ -172,18 +191,14 @@ function createSampleCard(sample, isBinary) {
   body.className = "card-body collapse-body";
   body.style.display = "none";
 
-  // Append sections: final metrics, full media, and window breakdown
+  // Append sections: final metrics, full media, and window breakdown.
   body.appendChild(createFinalMetricsSection(sample));
   body.appendChild(createFullMediaSection(sample));
   body.appendChild(createWindowTableSection(sample));
 
-  // Mark that videos/images haven’t been lazy‑loaded yet
   card.dataset.videosLoaded = "false";
-
-  // Toggle expand/collapse on header click
   header.addEventListener("click", () => {
-    const isCollapsed = (body.style.display === "none");
-    if (isCollapsed) {
+    if (body.style.display === "none") {
       body.style.display = "block";
       icon.textContent = "▼";
       if (card.dataset.videosLoaded === "false") {
@@ -206,13 +221,13 @@ function createSampleCard(sample, isBinary) {
 // -----------------------------------------------------
 function lazyLoadMedia(card) {
   const videos = card.querySelectorAll("video[data-video-url]");
-  videos.forEach(v => (v.src = v.dataset.videoUrl));
+  videos.forEach(v => v.src = v.dataset.videoUrl);
   const imgs = card.querySelectorAll("img[data-img-url]");
-  imgs.forEach(img => (img.src = img.dataset.imgUrl));
+  imgs.forEach(img => img.src = img.dataset.imgUrl);
 }
 
 /**
- * Final metrics section including softmax bar chart, cross entropy, and rank.
+ * Final metrics section.
  */
 function createFinalMetricsSection(sample) {
   const final = sample.final_metrics || {};
@@ -226,7 +241,6 @@ function createFinalMetricsSection(sample) {
     </div>
     <div class="mt-2" data-bar-chart></div>
   `;
-  // Mark a section for cross entropy and rank (used by both viewers)
   const ceEl = document.createElement("div");
   ceEl.className = "mt-2";
   ceEl.dataset.ceSection = "";
@@ -244,7 +258,7 @@ function createFinalMetricsSection(sample) {
 
 /**
  * Full audio/video section.
- * Videos and images are lazy‑loaded.
+ * Only creates video or spectrogram elements if the corresponding global toggles are enabled.
  */
 function createFullMediaSection(sample) {
   const container = document.createElement("div");
@@ -253,32 +267,45 @@ function createFullMediaSection(sample) {
   title.textContent = "Full Audio/Video";
   title.className = "fw-bold mb-2";
   container.appendChild(title);
-  let folderPath = `data/sample_${sample.sample_idx}`;
-  const w = sample.window_metrics || [];
-  if (w.length && w[0].video_path) {
-    const m = w[0].video_path.match(/^(.*sample_\d+)\/.*$/);
-    if (m) folderPath = m[1];
+  // Videos:
+  if (globalShowVideos) {
+    let folderPath = `data/sample_${sample.sample_idx}`;
+    const w = sample.window_metrics || [];
+    if (w.length && w[0].video_path) {
+      const m = w[0].video_path.match(/^(.*sample_\d+)\/.*$/);
+      if (m) folderPath = m[1];
+    }
+    const fullVidPath = `${folderPath}/full_window.mp4`;
+    const vid = document.createElement("video");
+    vid.width = 400;
+    vid.controls = true;
+    vid.className = "mb-2 d-block";
+    vid.dataset.videoUrl = fullVidPath;
+    vid.onerror = () => { vid.replaceWith(document.createTextNode("No full video found.")); };
+    container.appendChild(vid);
   }
-  const fullVidPath = `${folderPath}/full_window.mp4`;
-  const fullMelspecPath = `${folderPath}/melspectrogram_full.png`;
-  const vid = document.createElement("video");
-  vid.width = 400;
-  vid.controls = true;
-  vid.className = "mb-2 d-block";
-  vid.dataset.videoUrl = fullVidPath;
-  vid.onerror = () => { vid.replaceWith(document.createTextNode("No full video found.")); };
-  container.appendChild(vid);
-  const img = document.createElement("img");
-  img.width = 600;
-  img.alt = "Full Melspectrogram";
-  img.dataset.imgUrl = fullMelspecPath;
-  img.onerror = () => { img.replaceWith(document.createTextNode("No full spectrogram found.")); };
-  container.appendChild(img);
+  // Spectrograms:
+  if (globalShowSpectrograms) {
+    let folderPath = `data/sample_${sample.sample_idx}`;
+    const w = sample.window_metrics || [];
+    if (w.length && w[0].video_path) {
+      const m = w[0].video_path.match(/^(.*sample_\d+)\/.*$/);
+      if (m) folderPath = m[1];
+    }
+    const fullMelspecPath = `${folderPath}/melspectrogram_full.png`;
+    const img = document.createElement("img");
+    img.width = 600;
+    img.alt = "Full Melspectrogram";
+    img.dataset.imgUrl = fullMelspecPath;
+    img.onerror = () => { img.replaceWith(document.createTextNode("No full spectrogram found.")); };
+    container.appendChild(img);
+  }
   return container;
 }
 
 /**
  * Window breakdown table.
+ * For each window row, video and spectrogram cells are created only if enabled.
  */
 function createWindowTableSection(sample) {
   const container = document.createElement("div");
@@ -335,8 +362,9 @@ function createWindowTableSection(sample) {
     } else {
       barTd.textContent = "N/A";
     }
+    // Video cell:
     const videoTd = row.querySelector("[data-video]");
-    if (w.video_path) {
+    if (globalShowVideos && w.video_path) {
       const vid = document.createElement("video");
       vid.width = 150;
       vid.controls = true;
@@ -344,10 +372,11 @@ function createWindowTableSection(sample) {
       vid.onerror = () => { vid.replaceWith(document.createTextNode("No data")); };
       videoTd.appendChild(vid);
     } else {
-      videoTd.textContent = "N/A";
+      videoTd.textContent = "";
     }
+    // Spectrogram cell:
     const melspecTd = row.querySelector("[data-melspec]");
-    if (w.melspectrogram_path) {
+    if (globalShowSpectrograms && w.melspectrogram_path) {
       const img = document.createElement("img");
       img.width = 150;
       img.alt = "Melspec";
@@ -355,7 +384,7 @@ function createWindowTableSection(sample) {
       img.onerror = () => { img.replaceWith(document.createTextNode("No data")); };
       melspecTd.appendChild(img);
     } else {
-      melspecTd.textContent = "N/A";
+      melspecTd.textContent = "";
     }
     tbody.appendChild(row);
   });
@@ -402,10 +431,10 @@ function createSoftmaxBarChart(probs, groundTruth, predictedClass) {
 }
 
 // -----------------------------------------------------
-// Global UI functions (controls affect all viewers)
+// Global UI functions (controls affecting all viewers)
 // -----------------------------------------------------
 function setupUI() {
-  // Threshold change events
+  // Threshold change events.
   document.getElementById("offset-threshold-almost").addEventListener("change", e => {
     offsetThresholdAlmost = parseFloat(e.target.value) || 2;
     datasetViewers.forEach(viewer => updateCardColorsForViewer(viewer));
@@ -423,7 +452,7 @@ function setupUI() {
     datasetViewers.forEach(viewer => updateCardColorsForViewer(viewer));
   });
 
-  // Filter controls – update filters and stats for each viewer
+  // Other filter controls.
   [
     "filter-turnaround", "filter-lowConf", "filter-midConf", "filter-highConf",
     "filter-hasVideo", "filter-correct", "filter-almost", "filter-incorrect",
@@ -444,40 +473,37 @@ function setupUI() {
   });
   document.getElementById("btn-reset-filters").addEventListener("click", resetFilters);
 
-  // Collapse / Expand All buttons:
-  // - Collapse All: collapse (hide) all viewer-content panels and collapse all sample cards.
-  // - Expand All: for each viewer that is already open (viewer-content visible), expand all its sample cards.
+  // Global Collapse/Expand All.
   document.getElementById("btn-collapse-all").addEventListener("click", () => {
-    // Collapse viewer sections
     datasetViewers.forEach(viewer => {
       const viewerContent = viewer.section.querySelector('.viewer-content');
       if (viewerContent) {
         viewerContent.style.display = "none";
       }
-      // Also collapse all sample cards
       Object.values(viewer.sampleCards).forEach(cardEl => {
         const body = cardEl.querySelector(".collapse-body");
         const icon = cardEl.querySelector(".collapse-icon");
-        if (!body) return;
-        body.style.display = "none";
-        if (icon) icon.textContent = "▲";
+        if (body) {
+          body.style.display = "none";
+          if (icon) icon.textContent = "▲";
+        }
       });
     });
   });
   document.getElementById("btn-expand-all").addEventListener("click", () => {
-    // For each viewer that is already open, expand all its sample cards.
     datasetViewers.forEach(viewer => {
       const viewerContent = viewer.section.querySelector('.viewer-content');
       if (viewerContent && viewerContent.style.display !== "none") {
         Object.values(viewer.sampleCards).forEach(cardEl => {
           const body = cardEl.querySelector(".collapse-body");
           const icon = cardEl.querySelector(".collapse-icon");
-          if (!body) return;
-          body.style.display = "block";
-          if (icon) icon.textContent = "▼";
-          if (cardEl.dataset.videosLoaded === "false") {
-            lazyLoadMedia(cardEl);
-            cardEl.dataset.videosLoaded = "true";
+          if (body) {
+            body.style.display = "block";
+            if (icon) icon.textContent = "▼";
+            if (cardEl.dataset.videosLoaded === "false") {
+              lazyLoadMedia(cardEl);
+              cardEl.dataset.videosLoaded = "true";
+            }
           }
         });
       }
@@ -563,12 +589,8 @@ function doesSamplePassFilter(
         if (windowMetric) {
           offCat = (windowMetric.ground_truth == windowMetric.predicted_class) ? "correct" : "incorrect";
           conf = windowMetric.confidence;
-        } else {
-          return false;
-        }
-      } else {
-        return false;
-      }
+        } else return false;
+      } else return false;
     } else {
       const fin = sample.final_metrics || {};
       offCat = (fin.ground_truth == fin.predicted_class) ? "correct" : "incorrect";
@@ -583,34 +605,26 @@ function doesSamplePassFilter(
         if (windowMetric) {
           offCat = getOffsetCategory(windowMetric.offset_from_correct);
           conf = windowMetric.confidence;
-        } else {
-          return false;
-        }
-      } else {
-        return false;
-      }
+        } else return false;
+      } else return false;
     } else {
       const fin = sample.final_metrics || {};
       offCat = getOffsetCategory(fin.offset_from_correct);
       conf = fin.confidence ?? 0;
     }
   }
-  
   if (onlyTurnaround) {
     const w = sample.window_metrics || [];
     const nW = w.length;
     const nCorrect = w.filter(x => x.correct).length;
     const majorityWrong = (nCorrect < nW / 2);
     const finalCorrect = (offCat === "correct");
-    const isTurnaround = (majorityWrong && finalCorrect);
-    if (!isTurnaround) return false;
+    if (!(majorityWrong && finalCorrect)) return false;
   }
-  
   const confCat = getConfidenceCategory(conf);
   if (confCat === "low" && !showLow) return false;
   if (confCat === "mid" && !showMid) return false;
   if (confCat === "high" && !showHigh) return false;
-  
   if (isBinary) {
     if (offCat === "correct" && !showCorrect) return false;
     if (offCat === "incorrect" && !(showAlmost || showVeryWrong)) return false;
@@ -619,16 +633,13 @@ function doesSamplePassFilter(
     if (offCat === "almost" && !showAlmost) return false;
     if (offCat === "veryWrong" && !showVeryWrong) return false;
   }
-  
   if (onlyHasVideo) {
     const hasAnyVideo = (sample.window_metrics || []).some(w => w.video_path);
     if (!hasAnyVideo) return false;
   }
-  
   if (sampleIndexFilter && sampleIndexFilter.length > 0) {
     if (!sampleIndexFilter.includes(sample.sample_idx)) return false;
   }
-  
   return true;
 }
 
@@ -735,7 +746,7 @@ function updateCardColors(sample, cardEl) {
     return;
   }
 
-  // For 21‑class viewer (non‑binary)
+  // For non-binary (21-class) samples.
   const final = sample.final_metrics || {};
   let offset, conf;
   const useIteration = document.getElementById("filter-use-iteration").checked;
