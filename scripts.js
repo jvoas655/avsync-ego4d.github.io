@@ -6,7 +6,7 @@ let offsetThresholdVeryWrong = 3;
 let highConfidenceThreshold = 0.7;
 let lowConfidenceThreshold = 0.2;
 
-// Array to hold dataset viewer objects for each dataset (21-class and binary)
+// Array to hold dataset viewer objects for each dataset (21‑class and binary)
 let datasetViewers = [];
 
 /* 
@@ -14,11 +14,12 @@ Each dataset viewer object has the following structure:
 {
    label: string,
    jsonPath: string,
-   section: DOM element (the section containing the viewer),
-   container: DOM element (where sample cards are appended),
-   globalStatsEl: DOM element (for the viewer’s stats),
+   section: DOM element,
+   container: DOM element,
+   globalStatsEl: DOM element,
    samples: array,
-   sampleCards: object mapping sample_idx to card element
+   sampleCards: object mapping sample_idx to card element,
+   isBinary: boolean (true for binary predictions)
 }
 */
 
@@ -31,7 +32,8 @@ document.addEventListener("DOMContentLoaded", () => {
     container: document.getElementById("sample-container-21"),
     globalStatsEl: document.getElementById("global-stats-21"),
     samples: [],
-    sampleCards: {}
+    sampleCards: {},
+    isBinary: false
   };
 
   const viewerOOS = {
@@ -41,18 +43,17 @@ document.addEventListener("DOMContentLoaded", () => {
     container: document.getElementById("sample-container-oos"),
     globalStatsEl: document.getElementById("global-stats-oos"),
     samples: [],
-    sampleCards: {}
+    sampleCards: {},
+    isBinary: true
   };
 
-  // Add viewers to global array
   datasetViewers.push(viewer21, viewerOOS);
 
-  // Load each dataset
+  // Load each dataset viewer
   datasetViewers.forEach(viewer => {
     loadDatasetViewer(viewer);
   });
 
-  // Setup global UI event listeners
   setupUI();
 });
 
@@ -65,6 +66,10 @@ function loadDatasetViewer(viewer) {
     })
     .then(data => {
       viewer.samples = data;
+      // For binary viewer, mark each sample as binary.
+      if (viewer.isBinary) {
+        viewer.samples.forEach(s => s.isBinary = true);
+      }
       viewer.samples.forEach(computeSampleStats);
       createAllSampleCards(viewer);
       updateCardColorsForViewer(viewer);
@@ -79,7 +84,7 @@ function loadDatasetViewer(viewer) {
 }
 
 // -----------------------------------------------------
-// Stats computation (same as before)
+// Stats computation
 // -----------------------------------------------------
 function computeSampleStats(sample) {
   const w = sample.window_metrics || [];
@@ -115,7 +120,7 @@ function createAllSampleCards(viewer) {
 
 /**
  * Create a single sample card (collapsed by default).
- * Lazy-loads videos & images when the card is expanded.
+ * Videos and images are lazy‑loaded on expansion.
  */
 function createSampleCard(sample) {
   const card = document.createElement("div");
@@ -145,7 +150,7 @@ function createSampleCard(sample) {
   body.appendChild(createFullMediaSection(sample));
   body.appendChild(createWindowTableSection(sample));
 
-  // Mark that videos/images haven’t been lazy-loaded yet
+  // Mark that videos/images haven’t been lazy‑loaded yet
   card.dataset.videosLoaded = "false";
 
   // Toggle expand/collapse on header click
@@ -170,7 +175,7 @@ function createSampleCard(sample) {
 }
 
 // -----------------------------------------------------
-// Lazy-load videos & images when the user expands a card
+// Lazy-load videos & images when a card is expanded
 // -----------------------------------------------------
 function lazyLoadMedia(card) {
   const videos = card.querySelectorAll("video[data-video-url]");
@@ -180,7 +185,7 @@ function lazyLoadMedia(card) {
 }
 
 /**
- * Creates the final metrics section including a bar chart for softmax_probs and cross entropy.
+ * Final metrics section including softmax bar chart and cross entropy.
  */
 function createFinalMetricsSection(sample) {
   const final = sample.final_metrics || {};
@@ -209,8 +214,8 @@ function createFinalMetricsSection(sample) {
 }
 
 /**
- * Creates the full audio/video section.
- * (Videos and images are lazy-loaded.)
+ * Full audio/video section.
+ * Videos and images are lazy‑loaded.
  */
 function createFullMediaSection(sample) {
   const container = document.createElement("div");
@@ -244,7 +249,7 @@ function createFullMediaSection(sample) {
 }
 
 /**
- * Creates the window breakdown table.
+ * Window breakdown table.
  */
 function createWindowTableSection(sample) {
   const container = document.createElement("div");
@@ -296,7 +301,11 @@ function createWindowTableSection(sample) {
     row.querySelector("[data-offset]").dataset.offsetValue = w.offset_from_correct ?? "null";
     const barTd = row.querySelector("[data-bar]");
     if (w.softmax_probs) {
-      const chartDiv = createSoftmaxBarChart(w.softmax_probs, w.ground_truth, w.predicted_class);
+      const chartDiv = createSoftmaxBarChart(
+        w.softmax_probs,
+        w.ground_truth,
+        w.predicted_class
+      );
       barTd.appendChild(chartDiv);
     } else {
       barTd.textContent = "N/A";
@@ -331,7 +340,7 @@ function createWindowTableSection(sample) {
 }
 
 /**
- * Creates a small bar chart of the softmax probabilities.
+ * Creates a small bar chart of softmax probabilities.
  */
 function createSoftmaxBarChart(probs, groundTruth, predictedClass) {
   let maxVal = -Infinity, maxIdx = 0;
@@ -424,7 +433,6 @@ function resetFilters() {
   offsetThresholdVeryWrong = 3;
   highConfidenceThreshold = 0.7;
   lowConfidenceThreshold = 0.2;
-
   ["filter-turnaround", "filter-hasVideo", "filter-use-iteration"].forEach(id => {
     document.getElementById(id).checked = false;
   });
@@ -433,7 +441,6 @@ function resetFilters() {
   });
   document.getElementById("filter-iteration").value = "";
   document.getElementById("filter-sample-index").value = "";
-
   datasetViewers.forEach(viewer => {
     updateCardColorsForViewer(viewer);
     applyFiltersToViewer(viewer);
@@ -463,7 +470,7 @@ function toggleAllCards(expand) {
 }
 
 // -----------------------------------------------------
-// Filtering functions for a viewer
+// Filtering for a viewer
 // -----------------------------------------------------
 function applyFiltersToViewer(viewer) {
   const onlyTurnaround = document.getElementById("filter-turnaround").checked;
@@ -482,9 +489,16 @@ function applyFiltersToViewer(viewer) {
   viewer.samples.forEach(s => {
     const pass = doesSamplePassFilter(
       s,
-      onlyTurnaround, showLow, showMid, showHigh, onlyHasVideo,
-      showCorrect, showAlmost, showVeryWrong,
-      sampleIndexFilter
+      onlyTurnaround,
+      showLow,
+      showMid,
+      showHigh,
+      onlyHasVideo,
+      showCorrect,
+      showAlmost,
+      showVeryWrong,
+      sampleIndexFilter,
+      viewer.isBinary
     );
     if (viewer.sampleCards[s.sample_idx]) {
       viewer.sampleCards[s.sample_idx].style.display = pass ? "block" : "none";
@@ -496,231 +510,41 @@ function doesSamplePassFilter(
   sample,
   onlyTurnaround, showLow, showMid, showHigh, onlyHasVideo,
   showCorrect, showAlmost, showVeryWrong,
-  sampleIndexFilter
+  sampleIndexFilter, isBinary
 ) {
-  let offset, conf;
+  let offCat, conf;
   const useIteration = document.getElementById("filter-use-iteration").checked;
-  if (useIteration) {
-    const iterInput = document.getElementById("filter-iteration").value.trim();
-    const iterNum = parseInt(iterInput, 10);
-    if (!isNaN(iterNum)) {
-      const windowMetric = (sample.window_metrics || []).find(w => w.iteration === iterNum);
-      if (windowMetric) {
-        offset = windowMetric.offset_from_correct;
-        conf = windowMetric.confidence;
+  if (isBinary) {
+    if (useIteration) {
+      const iterInput = document.getElementById("filter-iteration").value.trim();
+      const iterNum = parseInt(iterInput, 10);
+      if (!isNaN(iterNum)) {
+        const windowMetric = (sample.window_metrics || []).find(w => w.iteration === iterNum);
+        if (windowMetric) {
+          offCat = (windowMetric.ground_truth == windowMetric.predicted_class) ? "correct" : "incorrect";
+          conf = windowMetric.confidence;
+        } else {
+          return false;
+        }
       } else {
         return false;
       }
     } else {
-      return false;
+      const fin = sample.final_metrics || {};
+      offCat = (fin.ground_truth == fin.predicted_class) ? "correct" : "incorrect";
+      conf = fin.confidence;
     }
   } else {
-    const fin = sample.final_metrics || {};
-    offset = fin.offset_from_correct;
-    conf = fin.confidence ?? 0;
-  }
-
-  if (onlyTurnaround) {
-    const w = sample.window_metrics || [];
-    const nW = w.length;
-    const nCorrect = w.filter(x => x.correct).length;
-    const majorityWrong = (nCorrect < nW / 2);
-    const finalCorrect = (offset === 0);
-    const isTurnaround = (majorityWrong && finalCorrect);
-    if (!isTurnaround) return false;
-  }
-
-  const confCat = getConfidenceCategory(conf);
-  if (confCat === "low" && !showLow) return false;
-  if (confCat === "mid" && !showMid) return false;
-  if (confCat === "high" && !showHigh) return false;
-
-  const offCat = getOffsetCategory(offset);
-  if (offCat === "correct" && !showCorrect) return false;
-  if (offCat === "almost" && !showAlmost) return false;
-  if (offCat === "veryWrong" && !showVeryWrong) return false;
-
-  if (onlyHasVideo) {
-    const hasAnyVideo = (sample.window_metrics || []).some(w => w.video_path);
-    if (!hasAnyVideo) return false;
-  }
-
-  if (sampleIndexFilter && sampleIndexFilter.length > 0) {
-    if (!sampleIndexFilter.includes(sample.sample_idx)) return false;
-  }
-
-  return true;
-}
-
-// -----------------------------------------------------
-// Confidence / Offset categories
-// -----------------------------------------------------
-function getConfidenceCategory(conf) {
-  if (conf >= highConfidenceThreshold) return "high";
-  if (conf <= lowConfidenceThreshold) return "low";
-  return "mid";
-}
-function getOffsetCategory(offset) {
-  if (offset === 0) return "correct";
-  if (offset !== undefined && offset <= offsetThresholdAlmost) return "almost";
-  if (offset !== undefined && offset >= offsetThresholdVeryWrong) return "veryWrong";
-  return "other";
-}
-function fmtStat(val, decimals = 2) {
-  if (val === null || isNaN(val)) return "N/A";
-  return val.toFixed(decimals);
-}
-
-// -----------------------------------------------------
-// Update card colors for a viewer
-// -----------------------------------------------------
-function updateCardColorsForViewer(viewer) {
-  viewer.samples.forEach(s => {
-    const cardEl = viewer.sampleCards[s.sample_idx];
-    if (cardEl) updateCardColors(s, cardEl);
-  });
-}
-
-// Update a single card’s color settings
-function updateCardColors(sample, cardEl) {
-  const final = sample.final_metrics || {};
-  let offset, conf;
-  const useIteration = document.getElementById("filter-use-iteration").checked;
-  if (useIteration) {
-    const iterInput = document.getElementById("filter-iteration").value.trim();
-    const iterNum = parseInt(iterInput, 10);
-    const windowMetric = (sample.window_metrics || []).find(w => w.iteration === iterNum);
-    if (windowMetric) {
-      offset = windowMetric.offset_from_correct;
-      conf = windowMetric.confidence;
-    } else {
-      offset = final.offset_from_correct;
-      conf = final.confidence;
-    }
-  } else {
-    offset = final.offset_from_correct;
-    conf = final.confidence;
-  }
-  const leftDiv = cardEl.querySelector("[data-final-left]");
-  const rightDiv = cardEl.querySelector("[data-final-right]");
-  const statsDiv = cardEl.querySelector("[data-final-stats]");
-  if (leftDiv && rightDiv && statsDiv) {
-    leftDiv.innerHTML = `
-      <div><strong>Ground Truth:</strong> ${final.ground_truth ?? "N/A"}</div>
-      <div><strong>Predicted:</strong> ${final.predicted_class ?? "N/A"}</div>
-    `;
-    const isCorrect = (offset === 0);
-    const correctBadge = `<span class="badge ${isCorrect ? "bg-success" : "bg-danger"}">
-      ${isCorrect ? "Yes" : "No"}
-    </span>`;
-    const offBadge = `<span class="badge ${getOffsetColorClass(offset)}">
-      ${offset ?? "N/A"}
-    </span>`;
-    const confBadge = `<span class="badge ${getConfidenceColorClass(conf)}">
-      ${conf !== undefined && conf !== null ? conf.toFixed(3) : "N/A"}
-    </span>`;
-    rightDiv.innerHTML = `
-      <div><strong>Correct?</strong> ${correctBadge}</div>
-      <div><strong>Offset:</strong> ${offBadge}</div>
-      <div><strong>Confidence:</strong> ${confBadge}</div>
-    `;
-
-    const { offset: offStats, confidence: confStats } = sample.stats;
-    statsDiv.innerHTML = `
-      <strong>Window Stats (Offset):</strong>
-        min=${fmtStat(offStats.min)} /
-        max=${fmtStat(offStats.max)} /
-        mean=${fmtStat(offStats.mean)} /
-        std=${fmtStat(offStats.std)}<br/>
-      <strong>Window Stats (Confidence):</strong>
-        min=${fmtStat(confStats.min, 3)} /
-        max=${fmtStat(confStats.max, 3)} /
-        mean=${fmtStat(confStats.mean, 3)} /
-        std=${fmtStat(confStats.std, 3)}
-    `;
-  }
-  const rows = cardEl.querySelectorAll("tr");
-  rows.forEach(r => {
-    const offTd = r.querySelector("[data-offset]");
-    const confTd = r.querySelector("[data-conf]");
-    if (offTd) {
-      const val = offTd.dataset.offsetValue;
-      if (val !== "null") {
-        const num = parseFloat(val);
-        offTd.innerHTML = `<span class="badge ${getOffsetColorClass(num)}">${num}</span>`;
-      } else {
-        offTd.innerHTML = `<span class="badge bg-secondary">N/A</span>`;
-      }
-    }
-    if (confTd) {
-      const val = confTd.dataset.confValue;
-      if (val !== "null") {
-        const num = parseFloat(val);
-        confTd.innerHTML = `<span class="badge ${getConfidenceColorClass(num)}">
-          ${num.toFixed(3)}
-        </span>`;
-      } else {
-        confTd.innerHTML = `<span class="badge bg-secondary">N/A</span>`;
-      }
-    }
-  });
-}
-
-// -----------------------------------------------------
-// Color classes for offset and confidence
-// -----------------------------------------------------
-function getOffsetColorClass(offset) {
-  if (offset === 0) return "bg-success";
-  if (offset !== undefined && offset <= offsetThresholdAlmost) return "bg-warning text-dark";
-  if (offset !== undefined && offset >= offsetThresholdVeryWrong) return "bg-danger";
-  return "bg-secondary";
-}
-function getConfidenceColorClass(conf) {
-  if (conf === undefined || conf === null) return "bg-secondary";
-  if (conf >= highConfidenceThreshold) return "bg-success";
-  if (conf <= lowConfidenceThreshold) return "bg-danger";
-  return "bg-warning text-dark";
-}
-
-// -----------------------------------------------------
-// Render global stats for a viewer
-// -----------------------------------------------------
-function renderGlobalStatsForViewer(viewer) {
-  const el = viewer.globalStatsEl;
-  const filteredSamples = viewer.samples.filter(s => {
-    const cardEl = viewer.sampleCards[s.sample_idx];
-    return cardEl && cardEl.style.display !== "none";
-  });
-  if (!filteredSamples.length) {
-    el.innerHTML = "No samples available with current filters.";
-    return;
-  }
-  const useIteration = document.getElementById("filter-use-iteration").checked;
-  let countCorrect = 0, sumConf = 0, sumOffset = 0, validOffs = 0;
-  filteredSamples.forEach(s => {
-    let off, c;
     if (useIteration) {
       const iterInput = document.getElementById("filter-iteration").value.trim();
       const iterNum = parseInt(iterInput, 10);
-      const win = (s.window_metrics || []).find(w => w.iteration === iterNum);
-      if (win) { off = win.offset_from_correct; c = win.confidence; }
-    } else {
-      const fin = s.final_metrics || {};
-      off = fin.offset_from_correct;
-      c = fin.confidence;
-    }
-    if (off === 0) countCorrect++;
-    if (typeof off === "number") { sumOffset += off; validOffs++; }
-    if (typeof c === "number") { sumConf += c; }
-  });
-  const n = filteredSamples.length;
-  const accuracy = (countCorrect / n) * 100;
-  const avgConf = sumConf / n;
-  const avgOff = validOffs > 0 ? sumOffset / validOffs : NaN;
-  el.innerHTML = `
-    <strong>Total Samples:</strong> ${n}<br/>
-    <strong>Accuracy (${useIteration ? "Iteration" : "Final"} predictions):</strong> ${accuracy.toFixed(1)}%<br/>
-    <strong>Average ${useIteration ? "Iteration" : "Final"} Confidence:</strong> ${isNaN(avgConf) ? "N/A" : avgConf.toFixed(3)}<br/>
-    <strong>Average ${useIteration ? "Iteration" : "Final"} Offset:</strong> ${isNaN(avgOff) ? "N/A" : avgOff.toFixed(2)}
-  `;
-}
+      if (!isNaN(iterNum)) {
+        const windowMetric = (sample.window_metrics || []).find(w => w.iteration === iterNum);
+        if (windowMetric) {
+          offCat = getOffsetCategory(windowMetric.offset_from_correct);
+          conf = windowMetric.confidence;
+        } else {
+          return false;
+        }
+      } else {
+ 
