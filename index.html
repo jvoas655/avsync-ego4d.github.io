@@ -30,55 +30,25 @@
               <label for="offset-threshold-almost" class="form-label">
                 "Almost Correct" Offset Threshold
               </label>
-              <input
-                type="number"
-                class="form-control"
-                id="offset-threshold-almost"
-                value="2"
-                step="1"
-                min="0"
-              >
+              <input type="number" class="form-control" id="offset-threshold-almost" value="2" step="1" min="0">
             </div>
             <div class="col-sm-6 col-md-3">
               <label for="offset-threshold-verywrong" class="form-label">
                 "Very Incorrect" Offset Threshold
               </label>
-              <input
-                type="number"
-                class="form-control"
-                id="offset-threshold-verywrong"
-                value="3"
-                step="1"
-                min="1"
-              >
+              <input type="number" class="form-control" id="offset-threshold-verywrong" value="3" step="1" min="1">
             </div>
             <div class="col-sm-6 col-md-3">
               <label for="conf-threshold-high" class="form-label">
                 High Confidence Threshold
               </label>
-              <input
-                type="number"
-                class="form-control"
-                id="conf-threshold-high"
-                value="0.7"
-                step="0.05"
-                min="0"
-                max="1"
-              >
+              <input type="number" class="form-control" id="conf-threshold-high" value="0.7" step="0.05" min="0" max="1">
             </div>
             <div class="col-sm-6 col-md-3">
               <label for="conf-threshold-low" class="form-label">
                 Low Confidence Threshold
               </label>
-              <input
-                type="number"
-                class="form-control"
-                id="conf-threshold-low"
-                value="0.2"
-                step="0.05"
-                min="0"
-                max="1"
-              >
+              <input type="number" class="form-control" id="conf-threshold-low" value="0.2" step="0.05" min="0" max="1">
             </div>
           </div>
 
@@ -161,20 +131,11 @@
               <label for="filter-sample-index" class="form-label">
                 Filter by Sample # (comma-separated)
               </label>
-              <input
-                type="text"
-                class="form-control"
-                id="filter-sample-index"
-                placeholder="e.g., 10, 15, 99"
-              >
+              <input type="text" class="form-control" id="filter-sample-index" placeholder="e.g., 10, 15, 99">
             </div>
             <div class="col-auto">
-              <button class="btn btn-secondary" id="btn-apply-filters">
-                Apply
-              </button>
-              <button class="btn btn-warning" id="btn-reset-filters">
-                Reset
-              </button>
+              <button class="btn btn-secondary" id="btn-apply-filters">Apply</button>
+              <button class="btn btn-warning" id="btn-reset-filters">Reset</button>
             </div>
           </div>
         </div>
@@ -186,9 +147,9 @@
         <button class="btn btn-outline-secondary" id="btn-expand-all">Expand All</button>
       </div>
 
-      <!-- Viewers displayed side by side -->
+      <!-- Place the two viewers side by side -->
       <div class="row">
-        <div class="col-md-6">
+        <div class="col-12 col-md-6">
           <section id="section-21" class="mb-5">
             <h2 class="mb-3">21-Class Predictions</h2>
             <div id="global-stats-21" class="alert alert-info" role="alert">
@@ -197,7 +158,7 @@
             <div id="sample-container-21"></div>
           </section>
         </div>
-        <div class="col-md-6">
+        <div class="col-12 col-md-6">
           <section id="section-oos" class="mb-5">
             <h2 class="mb-3">Binary Predictions (In Sync/Out of Sync)</h2>
             <div id="global-stats-oos" class="alert alert-info" role="alert">
