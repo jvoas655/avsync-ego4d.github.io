@@ -14,8 +14,8 @@ Each dataset viewer object has the following structure:
 {
    label: string,
    jsonPath: string,
-   section: DOM element,
-   container: DOM element,
+   section: DOM element (the entire viewer section),
+   container: DOM element (the sample cards container),
    globalStatsEl: DOM element,
    samples: array,
    sampleCards: object mapping sample_idx to card element,
@@ -54,8 +54,24 @@ document.addEventListener("DOMContentLoaded", () => {
     loadDatasetViewer(viewer);
   });
 
+  setupViewerToggles();
   setupUI();
 });
+
+// Attach click handlers to each viewer's toggle button.
+function setupViewerToggles() {
+  document.querySelectorAll('.toggle-viewer').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const viewerSection = this.closest('.viewer-section');
+      const content = viewerSection.querySelector('.viewer-content');
+      if (content.style.display === "none" || content.style.display === "") {
+        content.style.display = "block";
+      } else {
+        content.style.display = "none";
+      }
+    });
+  });
+}
 
 // Load a dataset viewer from its JSON file
 function loadDatasetViewer(viewer) {
@@ -66,10 +82,10 @@ function loadDatasetViewer(viewer) {
     })
     .then(data => {
       viewer.samples = data;
-      // For binary viewer, if sample_idx is missing (or 0), assign sequential indices.
+      // For binary viewer, if sample_idx is missing or zero, assign sequential indices.
       if (viewer.isBinary) {
         viewer.samples.forEach((sample, index) => {
-          if (sample.sample_idx === undefined || sample.sample_idx === null || sample.sample_idx === 0) {
+          if (!sample.sample_idx) {
             sample.sample_idx = index + 1;
           }
           sample.isBinary = true;
@@ -117,7 +133,7 @@ function getStats(values) {
 function createAllSampleCards(viewer) {
   viewer.container.innerHTML = "";
   viewer.samples.forEach(sample => {
-    const card = createSampleCard(sample);
+    const card = createSampleCard(sample, viewer.isBinary);
     viewer.sampleCards[sample.sample_idx] = card;
     viewer.container.appendChild(card);
   });
@@ -126,8 +142,9 @@ function createAllSampleCards(viewer) {
 /**
  * Create a single sample card (collapsed by default).
  * Videos and images are lazy‑loaded on expansion.
+ * For non‑binary (21‑class) samples, we display sample_idx+1.
  */
-function createSampleCard(sample) {
+function createSampleCard(sample, isBinary) {
   const card = document.createElement("div");
   card.className = "card mb-4 shadow-sm sample-card";
 
@@ -137,7 +154,12 @@ function createSampleCard(sample) {
   header.style.cursor = "pointer";
 
   const title = document.createElement("h5");
-  title.textContent = `Sample #${sample.sample_idx}`;
+  let displayIndex = sample.sample_idx;
+  if (!isBinary) {
+    // For 21-class viewer, add 1 so that numbering starts at 1.
+    displayIndex = Number(sample.sample_idx) + 1;
+  }
+  title.textContent = `Sample #${displayIndex}`;
   header.appendChild(title);
 
   const icon = document.createElement("span");
@@ -204,7 +226,7 @@ function createFinalMetricsSection(sample) {
     </div>
     <div class="mt-2" data-bar-chart></div>
   `;
-  // Add a cross entropy / rank block with a data attribute for later updates.
+  // Mark a section for cross entropy and rank (used by both viewers)
   const ceEl = document.createElement("div");
   ceEl.className = "mt-2";
   ceEl.dataset.ceSection = "";
@@ -422,9 +444,45 @@ function setupUI() {
   });
   document.getElementById("btn-reset-filters").addEventListener("click", resetFilters);
 
-  // Collapse / Expand All buttons
-  document.getElementById("btn-collapse-all").addEventListener("click", () => toggleAllCards(false));
-  document.getElementById("btn-expand-all").addEventListener("click", () => toggleAllCards(true));
+  // Collapse / Expand All buttons:
+  // - Collapse All: collapse (hide) all viewer-content panels and collapse all sample cards.
+  // - Expand All: for each viewer that is already open (viewer-content visible), expand all its sample cards.
+  document.getElementById("btn-collapse-all").addEventListener("click", () => {
+    // Collapse viewer sections
+    datasetViewers.forEach(viewer => {
+      const viewerContent = viewer.section.querySelector('.viewer-content');
+      if (viewerContent) {
+        viewerContent.style.display = "none";
+      }
+      // Also collapse all sample cards
+      Object.values(viewer.sampleCards).forEach(cardEl => {
+        const body = cardEl.querySelector(".collapse-body");
+        const icon = cardEl.querySelector(".collapse-icon");
+        if (!body) return;
+        body.style.display = "none";
+        if (icon) icon.textContent = "▲";
+      });
+    });
+  });
+  document.getElementById("btn-expand-all").addEventListener("click", () => {
+    // For each viewer that is already open, expand all its sample cards.
+    datasetViewers.forEach(viewer => {
+      const viewerContent = viewer.section.querySelector('.viewer-content');
+      if (viewerContent && viewerContent.style.display !== "none") {
+        Object.values(viewer.sampleCards).forEach(cardEl => {
+          const body = cardEl.querySelector(".collapse-body");
+          const icon = cardEl.querySelector(".collapse-icon");
+          if (!body) return;
+          body.style.display = "block";
+          if (icon) icon.textContent = "▼";
+          if (cardEl.dataset.videosLoaded === "false") {
+            lazyLoadMedia(cardEl);
+            cardEl.dataset.videosLoaded = "true";
+          }
+        });
+      }
+    });
+  });
 }
 
 function resetFilters() {
@@ -448,27 +506,6 @@ function resetFilters() {
     updateCardColorsForViewer(viewer);
     applyFiltersToViewer(viewer);
     renderGlobalStatsForViewer(viewer);
-  });
-}
-
-function toggleAllCards(expand) {
-  datasetViewers.forEach(viewer => {
-    Object.values(viewer.sampleCards).forEach(cardEl => {
-      const body = cardEl.querySelector(".collapse-body");
-      const icon = cardEl.querySelector(".collapse-icon");
-      if (!body) return;
-      if (expand) {
-        body.style.display = "block";
-        if (icon) icon.textContent = "▼";
-        if (cardEl.dataset.videosLoaded === "false") {
-          lazyLoadMedia(cardEl);
-          cardEl.dataset.videosLoaded = "true";
-        }
-      } else {
-        body.style.display = "none";
-        if (icon) icon.textContent = "▲";
-      }
-    });
   });
 }
 
@@ -524,7 +561,6 @@ function doesSamplePassFilter(
       if (!isNaN(iterNum)) {
         const windowMetric = (sample.window_metrics || []).find(w => w.iteration === iterNum);
         if (windowMetric) {
-          // For binary, determine correct vs. incorrect.
           offCat = (windowMetric.ground_truth == windowMetric.predicted_class) ? "correct" : "incorrect";
           conf = windowMetric.confidence;
         } else {
@@ -576,7 +612,6 @@ function doesSamplePassFilter(
   if (confCat === "high" && !showHigh) return false;
   
   if (isBinary) {
-    // For binary: only "correct" vs "incorrect" matter.
     if (offCat === "correct" && !showCorrect) return false;
     if (offCat === "incorrect" && !(showAlmost || showVeryWrong)) return false;
   } else {
@@ -627,7 +662,6 @@ function updateCardColorsForViewer(viewer) {
 }
 
 function updateCardColors(sample, cardEl) {
-  // For binary viewer, override the offset computation.
   if (sample.isBinary) {
     const final = sample.final_metrics || {};
     const binaryOffset = (final.ground_truth == final.predicted_class) ? 0 : 1;
@@ -635,7 +669,7 @@ function updateCardColors(sample, cardEl) {
     const leftDiv = cardEl.querySelector("[data-final-left]");
     const rightDiv = cardEl.querySelector("[data-final-right]");
     const statsDiv = cardEl.querySelector("[data-final-stats]");
-    const ceEl = cardEl.querySelector("[data-ce-section]");
+    const ceEl = cardEl.querySelector("[data-ceSection]") || cardEl.querySelector("[data-ce-section]");
     if (leftDiv && rightDiv && statsDiv) {
       leftDiv.innerHTML = `
         <div><strong>Ground Truth:</strong> ${final.ground_truth}</div>
@@ -670,7 +704,6 @@ function updateCardColors(sample, cardEl) {
           min=${fmtStat(confStats.min, 3)} / max=${fmtStat(confStats.max, 3)} / mean=${fmtStat(confStats.mean, 3)} / std=${fmtStat(confStats.std, 3)}
       `;
     }
-    // Also update each window row for binary samples.
     const rows = cardEl.querySelectorAll("tr");
     rows.forEach(r => {
       const offTd = r.querySelector("[data-offset]");
@@ -678,7 +711,6 @@ function updateCardColors(sample, cardEl) {
       if (offTd) {
         const val = offTd.dataset.offsetValue;
         if (val !== "null") {
-          // For binary, show any nonzero as 1.
           const num = parseFloat(val);
           const rowCorrect = (num === 0);
           offTd.innerHTML = `<span class="badge ${rowCorrect ? "bg-success" : "bg-danger"}">
@@ -703,7 +735,7 @@ function updateCardColors(sample, cardEl) {
     return;
   }
 
-  // For 21‑class viewer, use the original logic.
+  // For 21‑class viewer (non‑binary)
   const final = sample.final_metrics || {};
   let offset, conf;
   const useIteration = document.getElementById("filter-use-iteration").checked;
