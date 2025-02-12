@@ -1,39 +1,85 @@
-// -----------------------------------------------------
-// Global threshold variables
-// -----------------------------------------------------
+"use strict";
+
+// Global threshold variables (shared across all dataset viewers)
 let offsetThresholdAlmost = 2;
 let offsetThresholdVeryWrong = 3;
 let highConfidenceThreshold = 0.7;
 let lowConfidenceThreshold = 0.2;
 
-// We'll store sample data, plus a map from sample_idx -> card element
-let allSamples = [];
-let sampleCards = {};
+// Array to hold dataset viewer objects for each dataset (21-class and binary)
+let datasetViewers = [];
+
+/* 
+Each dataset viewer object has the following structure:
+{
+   label: string,
+   jsonPath: string,
+   section: DOM element (the section containing the viewer),
+   container: DOM element (where sample cards are appended),
+   globalStatsEl: DOM element (for the viewer’s stats),
+   samples: array,
+   sampleCards: object mapping sample_idx to card element
+}
+*/
 
 document.addEventListener("DOMContentLoaded", () => {
-  fetch("data/samples.json")
-    .then(res => res.json())
-    .then(data => {
-      allSamples = data;
-      allSamples.forEach(computeSampleStats);
+  // Initialize dataset viewers
+  const viewer21 = {
+    label: "21-Class Predictions",
+    jsonPath: "data/samples.json",
+    section: document.getElementById("section-21"),
+    container: document.getElementById("sample-container-21"),
+    globalStatsEl: document.getElementById("global-stats-21"),
+    samples: [],
+    sampleCards: {}
+  };
 
-      createAllSampleCards();
-      setupUI();
+  const viewerOOS = {
+    label: "Binary Predictions (In Sync/Out of Sync)",
+    jsonPath: "data_oos/samples.json",
+    section: document.getElementById("section-oos"),
+    container: document.getElementById("sample-container-oos"),
+    globalStatsEl: document.getElementById("global-stats-oos"),
+    samples: [],
+    sampleCards: {}
+  };
 
-      // Initial color update & filter application
-      updateAllCardColors();
-      applyFilters();
-      renderGlobalStats(getFilteredSamples());
-    })
-    .catch(err => {
-      console.error("Error loading samples.json:", err);
-      document.getElementById("global-stats").textContent =
-        "Could not load samples.json.";
-    });
+  // Add viewers to global array
+  datasetViewers.push(viewer21, viewerOOS);
+
+  // Load each dataset
+  datasetViewers.forEach(viewer => {
+    loadDatasetViewer(viewer);
+  });
+
+  // Setup global UI event listeners
+  setupUI();
 });
 
+// Load a dataset viewer from its JSON file
+function loadDatasetViewer(viewer) {
+  fetch(viewer.jsonPath)
+    .then(res => {
+      if (!res.ok) throw new Error("Network response was not ok");
+      return res.json();
+    })
+    .then(data => {
+      viewer.samples = data;
+      viewer.samples.forEach(computeSampleStats);
+      createAllSampleCards(viewer);
+      updateCardColorsForViewer(viewer);
+      applyFiltersToViewer(viewer);
+      renderGlobalStatsForViewer(viewer);
+    })
+    .catch(err => {
+      console.error("Error loading", viewer.jsonPath, err);
+      // Hide the section if data cannot be loaded
+      viewer.section.style.display = "none";
+    });
+}
+
 // -----------------------------------------------------
-// Stats computation
+// Stats computation (same as before)
 // -----------------------------------------------------
 function computeSampleStats(sample) {
   const w = sample.window_metrics || [];
@@ -56,21 +102,20 @@ function getStats(values) {
 }
 
 // -----------------------------------------------------
-// Build all sample cards (once)
+// Build all sample cards for a given viewer
 // -----------------------------------------------------
-function createAllSampleCards() {
-  const container = document.getElementById("sample-container");
-  container.innerHTML = "";
-  allSamples.forEach(sample => {
+function createAllSampleCards(viewer) {
+  viewer.container.innerHTML = "";
+  viewer.samples.forEach(sample => {
     const card = createSampleCard(sample);
-    sampleCards[sample.sample_idx] = card;
-    container.appendChild(card);
+    viewer.sampleCards[sample.sample_idx] = card;
+    viewer.container.appendChild(card);
   });
 }
 
 /**
  * Create a single sample card (collapsed by default).
- * We'll lazy-load videos & images on expansion.
+ * Lazy-loads videos & images when the card is expanded.
  */
 function createSampleCard(sample) {
   const card = document.createElement("div");
@@ -95,30 +140,25 @@ function createSampleCard(sample) {
   body.className = "card-body collapse-body";
   body.style.display = "none";
 
-  // Final metrics
+  // Append sections: final metrics, full media, and window breakdown
   body.appendChild(createFinalMetricsSection(sample));
-  // Full A/V
   body.appendChild(createFullMediaSection(sample));
-  // Window table
   body.appendChild(createWindowTableSection(sample));
 
-  // We'll mark that we haven't lazy-loaded videos/images yet
+  // Mark that videos/images haven’t been lazy-loaded yet
   card.dataset.videosLoaded = "false";
 
-  // Toggle expand/collapse
+  // Toggle expand/collapse on header click
   header.addEventListener("click", () => {
     const isCollapsed = (body.style.display === "none");
     if (isCollapsed) {
-      // Expand
       body.style.display = "block";
       icon.textContent = "▼";
-      // Lazy load
       if (card.dataset.videosLoaded === "false") {
         lazyLoadMedia(card);
         card.dataset.videosLoaded = "true";
       }
     } else {
-      // Collapse
       body.style.display = "none";
       icon.textContent = "▲";
     }
@@ -130,25 +170,22 @@ function createSampleCard(sample) {
 }
 
 // -----------------------------------------------------
-// Lazy-load videos & images when user expands
+// Lazy-load videos & images when the user expands a card
 // -----------------------------------------------------
 function lazyLoadMedia(card) {
-  // Videos
   const videos = card.querySelectorAll("video[data-video-url]");
   videos.forEach(v => (v.src = v.dataset.videoUrl));
-  // Images – note the selector now uses "data-img-url" (all lowercase with dash)
   const imgs = card.querySelectorAll("img[data-img-url]");
   imgs.forEach(img => (img.src = img.dataset.imgUrl));
 }
 
 /**
- * Final metrics section, including bar chart for final "softmax_probs" + cross entropy.
+ * Creates the final metrics section including a bar chart for softmax_probs and cross entropy.
  */
 function createFinalMetricsSection(sample) {
   const final = sample.final_metrics || {};
   const container = document.createElement("div");
   container.className = "mb-3";
-
   container.innerHTML = `
     <h6 class="mb-2 fw-bold">Final Metrics</h6>
     <div class="row g-2">
@@ -157,8 +194,6 @@ function createFinalMetricsSection(sample) {
     </div>
     <div class="mt-2" data-bar-chart></div>
   `;
-
-  // Cross Entropy & offset/rank
   const ceEl = document.createElement("div");
   ceEl.className = "mt-2";
   ceEl.innerHTML = `
@@ -166,88 +201,66 @@ function createFinalMetricsSection(sample) {
     <strong>Rank of Correct Class:</strong> ${final.rank_of_correct_class ?? "N/A"}
   `;
   container.appendChild(ceEl);
-
-  // Stats
   const statsDiv = document.createElement("div");
   statsDiv.className = "mt-2 border-top pt-2";
   statsDiv.dataset.finalStats = "";
   container.appendChild(statsDiv);
-
   return container;
 }
 
 /**
- * Full media section. We do NOT set src immediately; we store them in data-video-url
- * or data-img-url for lazyLoadMedia() to handle on expand.
+ * Creates the full audio/video section.
+ * (Videos and images are lazy-loaded.)
  */
 function createFullMediaSection(sample) {
   const container = document.createElement("div");
   container.className = "mb-3";
-
   const title = document.createElement("h6");
   title.textContent = "Full Audio/Video";
   title.className = "fw-bold mb-2";
   container.appendChild(title);
-
-  // Derive folder path from any window's video_path or default:
   let folderPath = `data/sample_${sample.sample_idx}`;
   const w = sample.window_metrics || [];
   if (w.length && w[0].video_path) {
     const m = w[0].video_path.match(/^(.*sample_\d+)\/.*$/);
     if (m) folderPath = m[1];
   }
-
   const fullVidPath = `${folderPath}/full_window.mp4`;
   const fullMelspecPath = `${folderPath}/melspectrogram_full.png`;
-
-  // Video
   const vid = document.createElement("video");
   vid.width = 400;
   vid.controls = true;
   vid.className = "mb-2 d-block";
-  vid.dataset.videoUrl = fullVidPath; // lazy
-  vid.onerror = () => {
-    vid.replaceWith(document.createTextNode("No full video found."));
-  };
+  vid.dataset.videoUrl = fullVidPath;
+  vid.onerror = () => { vid.replaceWith(document.createTextNode("No full video found.")); };
   container.appendChild(vid);
-
-  // Spectrogram
   const img = document.createElement("img");
   img.width = 600;
   img.alt = "Full Melspectrogram";
-  img.dataset.imgUrl = fullMelspecPath; // lazy – note the attribute becomes data-img-url in HTML
-  img.onerror = () => {
-    img.replaceWith(document.createTextNode("No full spectrogram found."));
-  };
+  img.dataset.imgUrl = fullMelspecPath;
+  img.onerror = () => { img.replaceWith(document.createTextNode("No full spectrogram found.")); };
   container.appendChild(img);
-
   return container;
 }
 
 /**
- * Window table with:
- * - Confidence & offset as color-coded badges
- * - Cross entropy
- * - Softmax bar chart
+ * Creates the window breakdown table.
  */
 function createWindowTableSection(sample) {
   const container = document.createElement("div");
   container.className = "mb-3";
-
   const title = document.createElement("h6");
   title.textContent = "Window Breakdown";
   title.className = "fw-bold mb-2";
   container.appendChild(title);
-
   const windows = sample.window_metrics || [];
   if (!windows.length) {
     container.innerHTML += `<div class="text-muted">No window metrics.</div>`;
     return container;
   }
-
   const table = document.createElement("table");
   table.className = "table table-striped table-bordered table-hover align-middle";
-  table.style.backgroundColor = "#fff"; // added for clear boundaries
+  table.style.backgroundColor = "#fff";
   const thead = document.createElement("thead");
   thead.innerHTML = `
     <tr class="table-secondary">
@@ -264,7 +277,6 @@ function createWindowTableSection(sample) {
     </tr>
   `;
   table.appendChild(thead);
-
   const tbody = document.createElement("tbody");
   windows.forEach(w => {
     const row = document.createElement("tr");
@@ -280,54 +292,37 @@ function createWindowTableSection(sample) {
       <td data-video></td>
       <td data-melspec></td>
     `;
-
-    // Conf / offset stored so we can color them
     row.querySelector("[data-conf]").dataset.confValue = w.confidence ?? "null";
     row.querySelector("[data-offset]").dataset.offsetValue = w.offset_from_correct ?? "null";
-
-    // Bar chart for softmax_probs
     const barTd = row.querySelector("[data-bar]");
     if (w.softmax_probs) {
-      const chartDiv = createSoftmaxBarChart(
-        w.softmax_probs,
-        w.ground_truth,
-        w.predicted_class
-      );
+      const chartDiv = createSoftmaxBarChart(w.softmax_probs, w.ground_truth, w.predicted_class);
       barTd.appendChild(chartDiv);
     } else {
       barTd.textContent = "N/A";
     }
-
-    // Video
     const videoTd = row.querySelector("[data-video]");
     if (w.video_path) {
       const vid = document.createElement("video");
       vid.width = 150;
       vid.controls = true;
       vid.dataset.videoUrl = w.video_path;
-      vid.onerror = () => {
-        vid.replaceWith(document.createTextNode("No data"));
-      };
+      vid.onerror = () => { vid.replaceWith(document.createTextNode("No data")); };
       videoTd.appendChild(vid);
     } else {
       videoTd.textContent = "N/A";
     }
-
-    // Melspec
     const melspecTd = row.querySelector("[data-melspec]");
     if (w.melspectrogram_path) {
       const img = document.createElement("img");
       img.width = 150;
       img.alt = "Melspec";
       img.dataset.imgUrl = w.melspectrogram_path;
-      img.onerror = () => {
-        img.replaceWith(document.createTextNode("No data"));
-      };
+      img.onerror = () => { img.replaceWith(document.createTextNode("No data")); };
       melspecTd.appendChild(img);
     } else {
       melspecTd.textContent = "N/A";
     }
-
     tbody.appendChild(row);
   });
   table.appendChild(tbody);
@@ -336,11 +331,10 @@ function createWindowTableSection(sample) {
 }
 
 /**
- * Creates a small "bar chart" of the softmax array.
+ * Creates a small bar chart of the softmax probabilities.
  */
 function createSoftmaxBarChart(probs, groundTruth, predictedClass) {
-  let maxVal = -Infinity;
-  let maxIdx = 0;
+  let maxVal = -Infinity, maxIdx = 0;
   for (let i = 0; i < probs.length; i++) {
     if (probs[i] > maxVal) {
       maxVal = probs[i];
@@ -374,45 +368,49 @@ function createSoftmaxBarChart(probs, groundTruth, predictedClass) {
 }
 
 // -----------------------------------------------------
-// UI
+// Global UI functions (controls affect all viewers)
 // -----------------------------------------------------
 function setupUI() {
-  // Threshold changes => recolor badges
+  // Threshold change events
   document.getElementById("offset-threshold-almost").addEventListener("change", e => {
     offsetThresholdAlmost = parseFloat(e.target.value) || 2;
-    updateAllCardColors();
+    datasetViewers.forEach(viewer => updateCardColorsForViewer(viewer));
   });
   document.getElementById("offset-threshold-verywrong").addEventListener("change", e => {
     offsetThresholdVeryWrong = parseFloat(e.target.value) || 3;
-    updateAllCardColors();
+    datasetViewers.forEach(viewer => updateCardColorsForViewer(viewer));
   });
   document.getElementById("conf-threshold-high").addEventListener("change", e => {
     highConfidenceThreshold = parseFloat(e.target.value) || 0.7;
-    updateAllCardColors();
+    datasetViewers.forEach(viewer => updateCardColorsForViewer(viewer));
   });
   document.getElementById("conf-threshold-low").addEventListener("change", e => {
     lowConfidenceThreshold = parseFloat(e.target.value) || 0.2;
-    updateAllCardColors();
+    datasetViewers.forEach(viewer => updateCardColorsForViewer(viewer));
   });
 
-  // Watch various filter controls – including the new iteration filter inputs
+  // Filter controls – update filters and stats for each viewer
   [
     "filter-turnaround", "filter-lowConf", "filter-midConf", "filter-highConf",
     "filter-hasVideo", "filter-correct", "filter-almost", "filter-incorrect",
     "filter-use-iteration", "filter-iteration", "filter-sample-index"
   ].forEach(id => {
     document.getElementById(id).addEventListener("change", () => {
-      applyFilters();
-      renderGlobalStats(getFilteredSamples());
+      datasetViewers.forEach(viewer => {
+        applyFiltersToViewer(viewer);
+        renderGlobalStatsForViewer(viewer);
+      });
     });
   });
   document.getElementById("btn-apply-filters").addEventListener("click", () => {
-    applyFilters();
-    renderGlobalStats(getFilteredSamples());
+    datasetViewers.forEach(viewer => {
+      applyFiltersToViewer(viewer);
+      renderGlobalStatsForViewer(viewer);
+    });
   });
   document.getElementById("btn-reset-filters").addEventListener("click", resetFilters);
 
-  // Collapse / Expand all
+  // Collapse / Expand All buttons
   document.getElementById("btn-collapse-all").addEventListener("click", () => toggleAllCards(false));
   document.getElementById("btn-expand-all").addEventListener("click", () => toggleAllCards(true));
 }
@@ -422,7 +420,6 @@ function resetFilters() {
   document.getElementById("offset-threshold-verywrong").value = 3;
   document.getElementById("conf-threshold-high").value = 0.7;
   document.getElementById("conf-threshold-low").value = 0.2;
-
   offsetThresholdAlmost = 2;
   offsetThresholdVeryWrong = 3;
   highConfidenceThreshold = 0.7;
@@ -431,48 +428,67 @@ function resetFilters() {
   ["filter-turnaround", "filter-hasVideo", "filter-use-iteration"].forEach(id => {
     document.getElementById(id).checked = false;
   });
-  ["filter-lowConf", "filter-midConf", "filter-highConf",
-   "filter-correct", "filter-almost", "filter-incorrect"
-  ].forEach(id => {
+  ["filter-lowConf", "filter-midConf", "filter-highConf", "filter-correct", "filter-almost", "filter-incorrect"].forEach(id => {
     document.getElementById(id).checked = true;
   });
   document.getElementById("filter-iteration").value = "";
   document.getElementById("filter-sample-index").value = "";
 
-  updateAllCardColors();
-  applyFilters();
-  renderGlobalStats(getFilteredSamples());
+  datasetViewers.forEach(viewer => {
+    updateCardColorsForViewer(viewer);
+    applyFiltersToViewer(viewer);
+    renderGlobalStatsForViewer(viewer);
+  });
+}
+
+function toggleAllCards(expand) {
+  datasetViewers.forEach(viewer => {
+    Object.values(viewer.sampleCards).forEach(cardEl => {
+      const body = cardEl.querySelector(".collapse-body");
+      const icon = cardEl.querySelector(".collapse-icon");
+      if (!body) return;
+      if (expand) {
+        body.style.display = "block";
+        if (icon) icon.textContent = "▼";
+        if (cardEl.dataset.videosLoaded === "false") {
+          lazyLoadMedia(cardEl);
+          cardEl.dataset.videosLoaded = "true";
+        }
+      } else {
+        body.style.display = "none";
+        if (icon) icon.textContent = "▲";
+      }
+    });
+  });
 }
 
 // -----------------------------------------------------
-// Filtering
+// Filtering functions for a viewer
 // -----------------------------------------------------
-function applyFilters() {
+function applyFiltersToViewer(viewer) {
   const onlyTurnaround = document.getElementById("filter-turnaround").checked;
   const showLow = document.getElementById("filter-lowConf").checked;
   const showMid = document.getElementById("filter-midConf").checked;
   const showHigh = document.getElementById("filter-highConf").checked;
   const onlyHasVideo = document.getElementById("filter-hasVideo").checked;
-
   const showCorrect = document.getElementById("filter-correct").checked;
   const showAlmost = document.getElementById("filter-almost").checked;
   const showVeryWrong = document.getElementById("filter-incorrect").checked;
-
   const sampleIndexInput = document.getElementById("filter-sample-index").value.trim();
   let sampleIndexFilter = null;
   if (sampleIndexInput) {
-    sampleIndexFilter = sampleIndexInput.split(",").map(s => parseInt(s.trim(), 10));
-    sampleIndexFilter = sampleIndexFilter.filter(n => !isNaN(n));
+    sampleIndexFilter = sampleIndexInput.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
   }
-
-  allSamples.forEach(s => {
+  viewer.samples.forEach(s => {
     const pass = doesSamplePassFilter(
       s,
       onlyTurnaround, showLow, showMid, showHigh, onlyHasVideo,
       showCorrect, showAlmost, showVeryWrong,
       sampleIndexFilter
     );
-    sampleCards[s.sample_idx].style.display = pass ? "block" : "none";
+    if (viewer.sampleCards[s.sample_idx]) {
+      viewer.sampleCards[s.sample_idx].style.display = pass ? "block" : "none";
+    }
   });
 }
 
@@ -499,9 +515,9 @@ function doesSamplePassFilter(
       return false;
     }
   } else {
-    const final = sample.final_metrics || {};
-    offset = final.offset_from_correct;
-    conf = final.confidence ?? 0;
+    const fin = sample.final_metrics || {};
+    offset = fin.offset_from_correct;
+    conf = fin.confidence ?? 0;
   }
 
   if (onlyTurnaround) {
@@ -556,17 +572,17 @@ function fmtStat(val, decimals = 2) {
 }
 
 // -----------------------------------------------------
-// Re-color offset/conf in final & window table badges
+// Update card colors for a viewer
 // -----------------------------------------------------
-function updateAllCardColors() {
-  allSamples.forEach(s => {
-    const cardEl = sampleCards[s.sample_idx];
-    updateCardColors(s, cardEl);
+function updateCardColorsForViewer(viewer) {
+  viewer.samples.forEach(s => {
+    const cardEl = viewer.sampleCards[s.sample_idx];
+    if (cardEl) updateCardColors(s, cardEl);
   });
 }
 
+// Update a single card’s color settings
 function updateCardColors(sample, cardEl) {
-  // Use iteration metric if toggled; otherwise, use final metrics.
   const final = sample.final_metrics || {};
   let offset, conf;
   const useIteration = document.getElementById("filter-use-iteration").checked;
@@ -585,8 +601,6 @@ function updateCardColors(sample, cardEl) {
     offset = final.offset_from_correct;
     conf = final.confidence;
   }
-
-  // Fill final columns
   const leftDiv = cardEl.querySelector("[data-final-left]");
   const rightDiv = cardEl.querySelector("[data-final-right]");
   const statsDiv = cardEl.querySelector("[data-final-stats]");
@@ -611,7 +625,6 @@ function updateCardColors(sample, cardEl) {
       <div><strong>Confidence:</strong> ${confBadge}</div>
     `;
 
-    // Window stats
     const { offset: offStats, confidence: confStats } = sample.stats;
     statsDiv.innerHTML = `
       <strong>Window Stats (Offset):</strong>
@@ -626,8 +639,6 @@ function updateCardColors(sample, cardEl) {
         std=${fmtStat(confStats.std, 3)}
     `;
   }
-
-  // Window rows
   const rows = cardEl.querySelectorAll("tr");
   rows.forEach(r => {
     const offTd = r.querySelector("[data-offset]");
@@ -656,7 +667,7 @@ function updateCardColors(sample, cardEl) {
 }
 
 // -----------------------------------------------------
-// Color classes
+// Color classes for offset and confidence
 // -----------------------------------------------------
 function getOffsetColorClass(offset) {
   if (offset === 0) return "bg-success";
@@ -672,64 +683,35 @@ function getConfidenceColorClass(conf) {
 }
 
 // -----------------------------------------------------
-// Collapse/Expand all
+// Render global stats for a viewer
 // -----------------------------------------------------
-function toggleAllCards(expand) {
-  Object.values(sampleCards).forEach(cardEl => {
-    const body = cardEl.querySelector(".collapse-body");
-    const icon = cardEl.querySelector(".collapse-icon");
-    if (!body) return;
-    if (expand) {
-      body.style.display = "block";
-      if (icon) icon.textContent = "▼";
-      if (cardEl.dataset.videosLoaded === "false") {
-        lazyLoadMedia(cardEl);
-        cardEl.dataset.videosLoaded = "true";
-      }
-    } else {
-      body.style.display = "none";
-      if (icon) icon.textContent = "▲";
-    }
+function renderGlobalStatsForViewer(viewer) {
+  const el = viewer.globalStatsEl;
+  const filteredSamples = viewer.samples.filter(s => {
+    const cardEl = viewer.sampleCards[s.sample_idx];
+    return cardEl && cardEl.style.display !== "none";
   });
-}
-
-// -----------------------------------------------------
-// Global stats on the currently visible (unfiltered) samples
-// -----------------------------------------------------
-function renderGlobalStats(filteredSamples) {
-  const el = document.getElementById("global-stats");
   if (!filteredSamples.length) {
     el.innerHTML = "No samples available with current filters.";
     return;
   }
   const useIteration = document.getElementById("filter-use-iteration").checked;
-  let countCorrect = 0;
-  let sumConf = 0;
-  let sumOffset = 0;
-  let validOffs = 0;
+  let countCorrect = 0, sumConf = 0, sumOffset = 0, validOffs = 0;
   filteredSamples.forEach(s => {
     let off, c;
     if (useIteration) {
       const iterInput = document.getElementById("filter-iteration").value.trim();
       const iterNum = parseInt(iterInput, 10);
       const win = (s.window_metrics || []).find(w => w.iteration === iterNum);
-      if (win) {
-        off = win.offset_from_correct;
-        c = win.confidence;
-      }
+      if (win) { off = win.offset_from_correct; c = win.confidence; }
     } else {
       const fin = s.final_metrics || {};
       off = fin.offset_from_correct;
       c = fin.confidence;
     }
     if (off === 0) countCorrect++;
-    if (typeof off === "number") {
-      sumOffset += off;
-      validOffs++;
-    }
-    if (typeof c === "number") {
-      sumConf += c;
-    }
+    if (typeof off === "number") { sumOffset += off; validOffs++; }
+    if (typeof c === "number") { sumConf += c; }
   });
   const n = filteredSamples.length;
   const accuracy = (countCorrect / n) * 100;
@@ -741,12 +723,4 @@ function renderGlobalStats(filteredSamples) {
     <strong>Average ${useIteration ? "Iteration" : "Final"} Confidence:</strong> ${isNaN(avgConf) ? "N/A" : avgConf.toFixed(3)}<br/>
     <strong>Average ${useIteration ? "Iteration" : "Final"} Offset:</strong> ${isNaN(avgOff) ? "N/A" : avgOff.toFixed(2)}
   `;
-}
-
-/** Return array of samples currently displayed (not filtered out). */
-function getFilteredSamples() {
-  return allSamples.filter(s => {
-    const cardEl = sampleCards[s.sample_idx];
-    return (cardEl.style.display !== "none");
-  });
 }
